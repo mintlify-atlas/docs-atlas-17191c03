@@ -255,35 +255,6 @@ const results = await Post
 
 ---
 
-### search()
-
-Searches the collection's text index for the given query.
-
-```typescript
-search(query: string, caseSensitive = false): QueryBuilder<T>
-```
-
-<ParamField path="query" type="string" required>
-  The search query string
-</ParamField>
-
-<ParamField path="caseSensitive" type="boolean" default="false">
-  Whether the search should be case-sensitive
-</ParamField>
-
-<ResponseField name="returns" type="QueryBuilder<T>">
-  The QueryBuilder instance for chaining
-</ResponseField>
-
-**Example**
-```typescript
-const results = await Article.search('javascript tutorial').get();
-```
-
-**Note**: Requires a MongoDB text index on the collection. See [MongoDB text index documentation](https://www.mongodb.com/docs/manual/core/indexes/index-types/index-text/).
-
----
-
 ## Execution Methods
 
 These terminal methods execute the query and return results.

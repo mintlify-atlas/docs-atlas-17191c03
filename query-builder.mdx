@@ -130,22 +130,6 @@ const users = await User
   .get()
 ```
 
-### search()
-
-Search using MongoDB's text index:
-
-```typescript
-// Search for posts containing "typescript"
-const posts = await Post.search('typescript').get()
-
-// Case-sensitive search
-const results = await Article.search('TypeScript', true).get()
-```
-
-<Warning>
-  The `search()` method requires a text index on your collection. See [MongoDB text indexes](https://www.mongodb.com/docs/manual/core/indexes/index-types/index-text/) for setup instructions.
-</Warning>
-
 ## Execution Methods
 
 ### get()
