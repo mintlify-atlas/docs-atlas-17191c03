@@ -1,0 +1,139 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "Esix",
+  "projectDescription": "A type-safe MongoDB ORM for TypeScript with zero configuration and an Eloquent-style API.",
+  "theme": "palm",
+  "primaryColor": "#10B981",
+  "lightColor": "#34D399",
+  "darkColor": "#059669",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "models",
+              "configuration",
+              "connections"
+            ]
+          },
+          {
+            "group": "Querying",
+            "pages": [
+              "retrieving-models",
+              "filtering",
+              "pagination",
+              "aggregations"
+            ]
+          },
+          {
+            "group": "Data Operations",
+            "pages": [
+              "creating-models",
+              "updating-models",
+              "deleting-models",
+              "first-or-create"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "relationships",
+              "query-builder",
+              "testing",
+              "security"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core Classes",
+            "pages": [
+              "api/base-model",
+              "api/query-builder",
+              "api/connection-handler"
+            ]
+          },
+          {
+            "group": "Query Methods",
+            "pages": [
+              "api/where",
+              "api/where-in",
+              "api/order-by",
+              "api/limit-skip"
+            ]
+          },
+          {
+            "group": "Aggregation Methods",
+            "pages": [
+              "api/count",
+              "api/sum-average",
+              "api/min-max",
+              "api/percentile"
+            ]
+          },
+          {
+            "group": "CRUD Operations",
+            "pages": [
+              "api/create",
+              "api/find",
+              "api/save",
+              "api/delete"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Zero configuration - no decorators or config files needed",
+    "Full TypeScript type safety with compile-time checks",
+    "Eloquent-style fluent API for elegant queries",
+    "Rich query builder with comparison operators",
+    "Built-in aggregation functions (count, sum, average, min, max, percentile)",
+    "Type-safe relationships between models",
+    "Automatic NoSQL injection protection",
+    "Automatic MongoDB connection handling",
+    "firstOrCreate for upsert operations"
+  ],
+  "publicApiSurface": [
+    "BaseModel",
+    "QueryBuilder",
+    "ConnectionHandler",
+    "BaseModel.create()",
+    "BaseModel.find()",
+    "BaseModel.findBy()",
+    "BaseModel.all()",
+    "BaseModel.where()",
+    "BaseModel.whereIn()",
+    "BaseModel.whereNotIn()",
+    "BaseModel.orderBy()",
+    "BaseModel.limit()",
+    "BaseModel.skip()",
+    "BaseModel.pluck()",
+    "BaseModel.count()",
+    "BaseModel.sum()",
+    "BaseModel.average()",
+    "BaseModel.min()",
+    "BaseModel.max()",
+    "BaseModel.percentile()",
+    "BaseModel.aggregate()",
+    "BaseModel.firstOrCreate()",
+    "instance.save()",
+    "instance.delete()",
+    "instance.hasMany()"
+  ]
+}
