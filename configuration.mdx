@@ -1,0 +1,348 @@
+---
+title: "Configuration"
+description: "Configure Esix with environment variables for different deployment environments"
+---
+
+## Overview
+
+Esix follows a zero-configuration philosophy. It works out of the box with sensible defaults, requiring only a MongoDB connection string to get started. All configuration is done through environment variables.
+
+## Environment Variables
+
+Esix supports three environment variables for configuration:
+
+### DB_URL
+
+<ParamField path="DB_URL" type="string" required>
+  MongoDB connection string. This is the only required configuration.
+</ParamField>
+
+```bash
+export DB_URL="mongodb://localhost:27017/myapp"
+```
+
+**Supported formats:**
+
+```bash
+# Local MongoDB
+DB_URL="mongodb://localhost:27017/myapp"
+
+# MongoDB with authentication
+DB_URL="mongodb://username:password@localhost:27017/myapp"
+
+# MongoDB Atlas
+DB_URL="mongodb+srv://username:password@cluster.mongodb.net/myapp"
+
+# MongoDB with replica set
+DB_URL="mongodb://host1:27017,host2:27017,host3:27017/myapp?replicaSet=myReplicaSet"
+```
+
+<Note>
+  The connection string should include the database name. If not provided, you must set `DB_DATABASE` separately.
+</Note>
+
+### DB_DATABASE
+
+<ParamField path="DB_DATABASE" type="string">
+  Database name. Optional if included in the connection string.
+</ParamField>
+
+```bash
+export DB_DATABASE="myapp"
+```
+
+Use this when you want to override the database name specified in the connection string or when your connection string doesn't include a database:
+
+```bash
+# Connection string without database
+export DB_URL="mongodb://localhost:27017"
+export DB_DATABASE="myapp"
+```
+
+### DB_ADAPTER
+
+<ParamField path="DB_ADAPTER" type="string" default="default">
+  Database adapter to use. Set to `'mock'` for testing.
+</ParamField>
+
+```bash
+export DB_ADAPTER="mock"
+```
+
+**Available adapters:**
+
+| Adapter | Description | Use Case |
+|---------|-------------|----------|
+| `default` | Standard MongoDB driver | Production and development |
+| `mock` | In-memory mock database | Unit tests and CI/CD |
+
+<Tip>
+  Use the mock adapter in your test environment to avoid connecting to a real database during tests.
+</Tip>
+
+### DB_MAX_POOL_SIZE
+
+<ParamField path="DB_MAX_POOL_SIZE" type="string" default="10">
+  Maximum number of connections in the connection pool.
+</ParamField>
+
+```bash
+export DB_MAX_POOL_SIZE="25"
+```
+
+Adjust this based on your application's concurrency needs:
+
+- **Low traffic**: 5-10 connections
+- **Medium traffic**: 10-25 connections
+- **High traffic**: 25-100 connections
+
+<Warning>
+  Setting this too high can overwhelm your MongoDB server. MongoDB Atlas has connection limits based on your cluster tier.
+</Warning>
+
+### DB_POOL_SIZE (Deprecated)
+
+<ParamField path="DB_POOL_SIZE" type="string" deprecated>
+  Legacy alias for `DB_MAX_POOL_SIZE`. Use `DB_MAX_POOL_SIZE` instead.
+</ParamField>
+
+## Configuration Examples
+
+### Development Environment
+
+Create a `.env` file in your project root:
+
+```bash .env
+DB_URL=mongodb://localhost:27017/myapp-dev
+DB_MAX_POOL_SIZE=5
+```
+
+Load it using a package like `dotenv`:
+
+```typescript
+import 'dotenv/config'
+import { BaseModel } from 'esix'
+
+// Your models are now configured
+class User extends BaseModel {
+  public name = ''
+}
+```
+
+### Production Environment
+
+Set environment variables in your deployment platform:
+
+```bash
+DB_URL=mongodb+srv://user:pass@cluster.mongodb.net/myapp-prod
+DB_MAX_POOL_SIZE=25
+```
+
+### Testing Environment
+
+Use the mock adapter for fast, isolated tests:
+
+```typescript
+// test/setup.ts
+import { beforeEach } from 'vitest'
+
+beforeEach(() => {
+  process.env.DB_ADAPTER = 'mock'
+  process.env.DB_DATABASE = 'test-db'
+})
+```
+
+```typescript
+// your-model.test.ts
+import { describe, it, expect } from 'vitest'
+import { User } from './models/user'
+
+describe('User', () => {
+  it('creates a user', async () => {
+    const user = await User.create({
+      name: 'Test User',
+      email: 'test@example.com'
+    })
+
+    expect(user.name).toBe('Test User')
+    expect(user.id).toBeDefined()
+  })
+})
+```
+
+## Multiple Databases
+
+Esix uses a global connection handler. To work with multiple databases, you can dynamically switch the `DB_DATABASE` environment variable:
+
+```typescript
+import { connectionHandler } from 'esix'
+
+// Close existing connection
+await connectionHandler.closeConnections()
+
+// Switch database
+process.env.DB_DATABASE = 'other-database'
+
+// New queries will use the new database
+const users = await User.all()
+```
+
+<Note>
+  This pattern is useful for multi-tenant applications where each tenant has a separate database.
+</Note>
+
+## Connection Pooling
+
+Esix automatically manages connection pooling for optimal performance:
+
+- Connections are created on-demand when first needed
+- Connections are reused across queries
+- The pool size is controlled by `DB_MAX_POOL_SIZE`
+- Connections remain open for the lifetime of your application
+
+### Manual Connection Management
+
+For graceful shutdowns, close connections manually:
+
+```typescript
+import { connectionHandler } from 'esix'
+
+process.on('SIGTERM', async () => {
+  console.log('Closing database connections...')
+  await connectionHandler.closeConnections()
+  process.exit(0)
+})
+```
+
+## Connection String Options
+
+You can pass MongoDB connection options via the connection string:
+
+```bash
+# Connection timeout
+DB_URL="mongodb://localhost:27017/myapp?connectTimeoutMS=5000"
+
+# Write concern
+DB_URL="mongodb://localhost:27017/myapp?w=majority"
+
+# Read preference
+DB_URL="mongodb://localhost:27017/myapp?readPreference=secondary"
+
+# Multiple options
+DB_URL="mongodb://localhost:27017/myapp?retryWrites=true&w=majority"
+```
+
+See [MongoDB Connection String Options](https://www.mongodb.com/docs/manual/reference/connection-string/#connection-string-options) for all available options.
+
+## Security Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Never Commit Secrets" icon="lock">
+    Keep `.env` files out of version control. Add them to `.gitignore`.
+  </Card>
+  
+  <Card title="Use Strong Credentials" icon="key">
+    Use strong passwords for database users and rotate them regularly.
+  </Card>
+  
+  <Card title="Limit Permissions" icon="shield">
+    Create database users with only the permissions they need.
+  </Card>
+  
+  <Card title="Use TLS/SSL" icon="shield-halved">
+    Enable TLS for production databases. MongoDB Atlas enables this by default.
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+### Connection Fails
+
+<AccordionGroup>
+  <Accordion title="Check your connection string">
+    Verify the connection string format and credentials:
+    
+    ```typescript
+    import { connectionHandler } from 'esix'
+    
+    try {
+      await connectionHandler.getConnection()
+      console.log('Connected successfully')
+    } catch (error) {
+      console.error('Connection failed:', error.message)
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Verify network access">
+    Ensure your MongoDB server is accessible:
+    - Check firewall rules
+    - Verify IP whitelist (MongoDB Atlas)
+    - Test with `mongosh` or MongoDB Compass
+  </Accordion>
+  
+  <Accordion title="Check authentication">
+    Verify username and password are correct and the user has access to the database.
+  </Accordion>
+</AccordionGroup>
+
+### Invalid Adapter Error
+
+If you see an error like `mysql is not a valid adapter name`:
+
+```typescript
+// ❌ Invalid
+process.env.DB_ADAPTER = 'mysql'
+
+// ✅ Valid
+process.env.DB_ADAPTER = 'default' // or 'mock'
+```
+
+Esix only supports MongoDB. Valid adapters are `'default'` and `'mock'`.
+
+## Environment-Specific Configuration
+
+Use different `.env` files for each environment:
+
+```bash
+# .env.development
+DB_URL=mongodb://localhost:27017/myapp-dev
+DB_MAX_POOL_SIZE=5
+
+# .env.test
+DB_ADAPTER=mock
+DB_DATABASE=test-db
+
+# .env.production
+DB_URL=mongodb+srv://user:pass@cluster.mongodb.net/myapp
+DB_MAX_POOL_SIZE=25
+```
+
+Load the appropriate file based on `NODE_ENV`:
+
+```typescript
+import { config } from 'dotenv'
+
+const envFile = `.env.${process.env.NODE_ENV || 'development'}`
+config({ path: envFile })
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Connections" icon="plug" href="/connections">
+    Learn how Esix manages database connections
+  </Card>
+  
+  <Card title="Testing" icon="flask" href="/testing">
+    Set up your test environment with the mock adapter
+  </Card>
+  
+  <Card title="Security" icon="shield" href="/security">
+    Best practices for securing your database
+  </Card>
+  
+  <Card title="Models" icon="database" href="/models">
+    Start defining your data models
+  </Card>
+</CardGroup>

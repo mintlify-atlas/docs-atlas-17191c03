@@ -1,0 +1,401 @@
+---
+title: "ConnectionHandler"
+description: "Manages MongoDB database connections with automatic pooling and multiple adapter support"
+---
+
+# ConnectionHandler
+
+The `ConnectionHandler` class manages MongoDB database connections for Esix. It handles connection pooling, supports multiple database adapters (including a mock adapter for testing), and provides a singleton instance for consistent connection management throughout your application.
+
+## Overview
+
+ConnectionHandler uses environment variables to configure database connections and automatically manages connection pooling behind the scenes. You typically don't need to interact with this class directly, as Esix models use it internally.
+
+## Singleton Instance
+
+Esix exports a singleton instance that should be used throughout your application:
+
+```typescript
+import { connectionHandler } from 'esix';
+```
+
+## Environment Variables
+
+ConnectionHandler reads the following environment variables for configuration:
+
+<ParamField path="DB_URL" type="string" default="'mongodb://127.0.0.1:27017/'">
+  MongoDB connection URL/URI
+</ParamField>
+
+<ParamField path="DB_DATABASE" type="string" default="''" required>
+  Name of the database to connect to
+</ParamField>
+
+<ParamField path="DB_ADAPTER" type="string" default="'default'">
+  Database adapter to use. Options: `'default'` (real MongoDB) or `'mock'` (for testing)
+</ParamField>
+
+<ParamField path="DB_MAX_POOL_SIZE" type="string" default="'10'">
+  Maximum number of connections in the connection pool
+</ParamField>
+
+<ParamField path="DB_POOL_SIZE" type="string" default="'10'">
+  (Deprecated) Legacy alias for `DB_MAX_POOL_SIZE`. Use `DB_MAX_POOL_SIZE` instead.
+</ParamField>
+
+**Example .env file**
+```bash
+DB_URL=mongodb://localhost:27017/
+DB_DATABASE=myapp
+DB_ADAPTER=default
+DB_MAX_POOL_SIZE=20
+```
+
+---
+
+## Methods
+
+### getConnection()
+
+Returns a connection to the database. Connections are pooled automatically, so multiple calls return connections from the same pool.
+
+```typescript
+async getConnection(): Promise<Db>
+```
+
+<ResponseField name="returns" type="Promise<Db>">
+  MongoDB database instance from the `mongodb` driver
+</ResponseField>
+
+**Example**
+```typescript
+import { connectionHandler } from 'esix';
+
+const db = await connectionHandler.getConnection();
+const collection = db.collection('users');
+const users = await collection.find({}).toArray();
+```
+
+**Note**: You typically don't need to call this directly, as Esix models handle connections internally. However, it's useful for custom MongoDB operations or migrations.
+
+---
+
+### closeConnections()
+
+Manually closes all open database connections. This is useful for gracefully shutting down your application or cleaning up after tests.
+
+```typescript
+async closeConnections(): Promise<void>
+```
+
+<ResponseField name="returns" type="Promise<void>">
+  Promise that resolves when all connections are closed
+</ResponseField>
+
+**Examples**
+```typescript
+import { connectionHandler } from 'esix';
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  await connectionHandler.closeConnections();
+  process.exit(0);
+});
+
+// After tests
+afterAll(async () => {
+  await connectionHandler.closeConnections();
+});
+```
+
+**Note**: After closing connections, new queries will establish a fresh connection automatically.
+
+---
+
+## Connection Pooling
+
+ConnectionHandler uses MongoDB's built-in connection pooling for optimal performance:
+
+- **Automatic pooling**: Connections are reused across queries
+- **Configurable size**: Control pool size via `DB_MAX_POOL_SIZE`
+- **Thread-safe**: Multiple queries can run concurrently using connections from the pool
+- **Automatic reconnection**: Handles connection failures gracefully
+
+```typescript
+// All these queries use connections from the same pool
+const users = await User.all();
+const posts = await Post.where('status', 'published').get();
+const comments = await Comment.where('approved', true).get();
+```
+
+---
+
+## Database Adapters
+
+### Default Adapter
+
+The default adapter connects to a real MongoDB instance using the official MongoDB Node.js driver.
+
+**Configuration**
+```bash
+DB_ADAPTER=default
+DB_URL=mongodb://localhost:27017/
+DB_DATABASE=production
+```
+
+**Use cases**:
+- Production environments
+- Development with local or remote MongoDB
+- Staging environments
+
+---
+
+### Mock Adapter
+
+The mock adapter uses `mongo-mock` for in-memory database operations, perfect for testing without a real MongoDB instance.
+
+**Configuration**
+```bash
+DB_ADAPTER=mock
+DB_DATABASE=test
+```
+
+**Use cases**:
+- Unit tests
+- Integration tests
+- CI/CD pipelines without MongoDB
+- Local development without MongoDB installed
+
+**Example test setup**
+```typescript
+// test/setup.ts
+process.env.DB_ADAPTER = 'mock';
+process.env.DB_DATABASE = 'test';
+
+import { connectionHandler } from 'esix';
+
+afterEach(async () => {
+  // Clean up after each test
+  const db = await connectionHandler.getConnection();
+  const collections = await db.collections();
+  
+  for (const collection of collections) {
+    await collection.deleteMany({});
+  }
+});
+
+afterAll(async () => {
+  await connectionHandler.closeConnections();
+});
+```
+
+---
+
+## Advanced Usage
+
+### Custom MongoDB Operations
+
+While Esix models provide most functionality you need, you can access the raw MongoDB database for custom operations:
+
+```typescript
+import { connectionHandler } from 'esix';
+
+const db = await connectionHandler.getConnection();
+
+// Create a custom index
+await db.collection('users').createIndex(
+  { email: 1 },
+  { unique: true }
+);
+
+// Use MongoDB aggregation
+const results = await db.collection('orders').aggregate([
+  { $match: { status: 'completed' } },
+  { $group: { _id: '$userId', total: { $sum: '$amount' } } }
+]).toArray();
+
+// Perform bulk operations
+const bulk = db.collection('products').initializeUnorderedBulkOp();
+bulk.find({ category: 'electronics' }).update({ $inc: { views: 1 } });
+await bulk.execute();
+```
+
+---
+
+### Database Migrations
+
+Use ConnectionHandler to write database migration scripts:
+
+```typescript
+// migrations/001-add-user-indexes.ts
+import { connectionHandler } from 'esix';
+
+async function up() {
+  const db = await connectionHandler.getConnection();
+  
+  await db.collection('users').createIndex(
+    { email: 1 },
+    { unique: true, background: true }
+  );
+  
+  await db.collection('users').createIndex(
+    { createdAt: -1 },
+    { background: true }
+  );
+}
+
+async function down() {
+  const db = await connectionHandler.getConnection();
+  
+  await db.collection('users').dropIndex('email_1');
+  await db.collection('users').dropIndex('createdAt_-1');
+}
+
+export { up, down };
+```
+
+---
+
+### Graceful Shutdown
+
+Implement graceful shutdown in your application to properly close database connections:
+
+```typescript
+import { connectionHandler } from 'esix';
+import express from 'express';
+
+const app = express();
+const server = app.listen(3000);
+
+// Handle shutdown signals
+const shutdown = async (signal: string) => {
+  console.log(`${signal} received, closing connections...`);
+  
+  // Stop accepting new requests
+  server.close(async () => {
+    console.log('HTTP server closed');
+    
+    // Close database connections
+    await connectionHandler.closeConnections();
+    console.log('Database connections closed');
+    
+    process.exit(0);
+  });
+  
+  // Force shutdown after 10 seconds
+  setTimeout(() => {
+    console.error('Forced shutdown after timeout');
+    process.exit(1);
+  }, 10000);
+};
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+```
+
+---
+
+### Multiple Database Connections
+
+By default, Esix uses a single ConnectionHandler instance. If you need to connect to multiple databases, you can create separate ConnectionHandler instances:
+
+```typescript
+import { ConnectionHandler } from 'esix';
+
+// Create handlers for different databases
+const primaryHandler = new ConnectionHandler();
+const analyticsHandler = new ConnectionHandler();
+
+// Set up environment for each
+process.env.DB_DATABASE = 'primary';
+const primaryDb = await primaryHandler.getConnection();
+
+process.env.DB_DATABASE = 'analytics';
+const analyticsDb = await analyticsHandler.getConnection();
+
+// Close both when done
+await primaryHandler.closeConnections();
+await analyticsHandler.closeConnections();
+```
+
+**Note**: For most applications, a single database connection is sufficient.
+
+---
+
+## Error Handling
+
+### Invalid Adapter
+
+If an invalid adapter name is provided, ConnectionHandler throws a descriptive error:
+
+```typescript
+// This will throw an error
+process.env.DB_ADAPTER = 'invalid';
+await connectionHandler.getConnection();
+// Error: invalid is not a valid adapter name. Must be one of 'default', 'mock'.
+```
+
+---
+
+### Connection Failures
+
+Handle connection failures gracefully:
+
+```typescript
+import { connectionHandler } from 'esix';
+
+try {
+  const db = await connectionHandler.getConnection();
+  // Use the database connection
+} catch (error) {
+  console.error('Failed to connect to database:', error);
+  process.exit(1);
+}
+```
+
+---
+
+## Best Practices
+
+1. **Use environment variables**: Never hardcode connection strings
+2. **Implement graceful shutdown**: Always close connections on application shutdown
+3. **Use the singleton**: Import and use the exported `connectionHandler` instance
+4. **Configure pool size**: Adjust `DB_MAX_POOL_SIZE` based on your application's concurrency needs
+5. **Use mock adapter for tests**: Configure `DB_ADAPTER=mock` in test environments
+6. **Handle connection errors**: Wrap connection calls in try-catch blocks for production
+
+```typescript
+// Good: Use singleton and environment variables
+import { connectionHandler } from 'esix';
+const db = await connectionHandler.getConnection();
+
+// Avoid: Creating new instances unnecessarily
+const handler = new ConnectionHandler(); // Usually not needed
+```
+
+---
+
+## Type Definitions
+
+```typescript
+class ConnectionHandler {
+  private client?: MongoClient;
+  
+  async getConnection(): Promise<Db>;
+  async closeConnections(): Promise<void>;
+  private async createClient(): Promise<MongoClient>;
+  private async getDatabase(): Promise<Db>;
+}
+
+const connectionHandler: ConnectionHandler;
+
+export { ConnectionHandler, connectionHandler };
+```
+
+---
+
+## Related
+
+- **BaseModel**: Uses ConnectionHandler internally for all database operations
+- **QueryBuilder**: Accesses database connections through ConnectionHandler
+- **MongoDB Driver**: ConnectionHandler wraps the official MongoDB Node.js driver

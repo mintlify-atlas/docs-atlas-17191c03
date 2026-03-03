@@ -1,0 +1,197 @@
+---
+title: 'Deleting Models'
+description: 'Learn how to delete model instances from the database using the delete() method'
+---
+
+## Overview
+
+The `delete()` method removes a model instance from the database. It's an instance method that must be called on an existing model object.
+
+## Method Signature
+
+```typescript packages/esix/src/base-model.ts
+async delete(): Promise<number>
+```
+
+<Note>
+The `delete()` method returns the number of documents deleted (typically 1 if successful, 0 if not found).
+</Note>
+
+## Basic Usage
+
+To delete a model, first retrieve it from the database, then call the `delete()` method:
+
+<CodeGroup>
+
+```typescript Delete by ID
+const post = await BlogPost.find('5f3568f2a0cdd1c9ba411c43');
+
+if (post) {
+  await post.delete();
+  console.log('Post deleted successfully');
+}
+```
+
+```typescript Delete by Query
+const book = await Book.findBy('isbn', '9780486284736');
+
+if (book) {
+  const deletedCount = await book.delete();
+  console.log(`Deleted ${deletedCount} book(s)`);
+}
+```
+
+```typescript Delete with Confirmation
+const user = await User.find('user-123');
+
+if (user && user.status === 'inactive') {
+  await user.delete();
+  console.log(`Deleted inactive user: ${user.email}`);
+}
+```
+
+</CodeGroup>
+
+## How It Works
+
+The `delete()` method:
+
+1. Uses the model's `id` to locate the document in MongoDB
+2. Performs a `deleteOne` operation with a limit of 1
+3. Returns the count of deleted documents
+
+```typescript Internal Implementation
+// Simplified version of what happens internally
+await Book.where({ _id: book.id }).limit(1).delete();
+```
+
+## Checking Deletion Success
+
+The method returns the number of documents deleted, which you can use to verify success:
+
+```typescript
+const post = await BlogPost.find('post-123');
+
+if (post) {
+  const deletedCount = await post.delete();
+  
+  if (deletedCount === 1) {
+    console.log('Successfully deleted');
+  } else {
+    console.log('No documents were deleted');
+  }
+}
+```
+
+## Common Patterns
+
+### Delete After Validation
+
+```typescript
+const book = await Book.findBy('isbn', '9780486284736');
+
+if (book && book.isAvailable === false) {
+  await book.delete();
+  console.log('Removed unavailable book');
+}
+```
+
+### Delete Multiple Models
+
+To delete multiple models, you need to iterate through them:
+
+```typescript
+const oldPosts = await BlogPost
+  .where('createdAt', '<', Date.now() - 365 * 24 * 60 * 60 * 1000)
+  .get();
+
+for (const post of oldPosts) {
+  await post.delete();
+}
+
+console.log(`Deleted ${oldPosts.length} old posts`);
+```
+
+### Conditional Deletion
+
+```typescript
+const user = await User.findBy('email', 'user@example.com');
+
+if (user) {
+  if (user.lastLoginAt < Date.now() - 730 * 24 * 60 * 60 * 1000) {
+    await user.delete();
+    console.log('Deleted inactive user');
+  } else {
+    console.log('User is still active');
+  }
+}
+```
+
+## Error Handling
+
+Always handle potential errors when deleting models:
+
+```typescript
+try {
+  const book = await Book.find('book-123');
+  
+  if (book) {
+    await book.delete();
+    console.log('Book deleted');
+  } else {
+    console.log('Book not found');
+  }
+} catch (error) {
+  console.error('Failed to delete book:', error);
+}
+```
+
+## Important Notes
+
+<Warning>
+The `delete()` method permanently removes the document from the database. This operation cannot be undone. Consider implementing soft deletes (e.g., a `deletedAt` field) if you need to recover deleted records.
+</Warning>
+
+<Tip>
+If you need to delete models based on a query without retrieving them first, use the QueryBuilder's delete functionality instead.
+</Tip>
+
+## Soft Delete Pattern
+
+For applications that need to recover deleted records, consider implementing a soft delete pattern:
+
+```typescript
+class User extends BaseModel {
+  public email = '';
+  public deletedAt: number | null = null;
+  
+  async softDelete() {
+    this.deletedAt = Date.now();
+    await this.save();
+  }
+  
+  static getActive() {
+    return User.where('deletedAt', null);
+  }
+}
+
+// Usage
+const user = await User.find('user-123');
+if (user) {
+  await user.softDelete();
+}
+
+// Query only active users
+const activeUsers = await User.getActive().get();
+```
+
+## Related Methods
+
+<CardGroup cols={2}>
+  <Card title="Creating Models" icon="plus" href="/creating-models">
+    Learn how to create new models
+  </Card>
+  <Card title="Updating Models" icon="pen-to-square" href="/updating-models">
+    Update existing model data
+  </Card>
+</CardGroup>

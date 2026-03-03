@@ -1,0 +1,175 @@
+---
+title: 'save()'
+description: 'Persist model changes to the database'
+---
+
+## Method Signature
+
+```typescript
+async save(): Promise<void>
+```
+
+Persists the current changes to the database. This instance method can be used to both create new models and update existing ones.
+
+- For **new models** (no ID): Generates a new ID, sets `createdAt`, and inserts into the database
+- For **existing models** (has ID): Updates `updatedAt` and saves changes to the database
+
+## Parameters
+
+None. This method operates on the current instance.
+
+## Returns
+
+<ResponseField name="void" type="Promise<void>">
+  Returns a promise that resolves when the save operation is complete. The model instance is updated with generated fields (id, timestamps).
+</ResponseField>
+
+## Examples
+
+### Creating a New Model
+
+```typescript
+const post = new BlogPost();
+
+post.title = 'My Second Blog Post!';
+post.content = 'This is the content.';
+post.status = 'draft';
+
+await post.save();
+
+console.log(post.id); // Auto-generated ID
+console.log(post.createdAt); // Timestamp when created
+```
+
+### Updating an Existing Model
+
+```typescript
+// Retrieve existing model
+const user = await User.find(userId);
+
+if (user) {
+  // Modify properties
+  user.name = 'John Doe';
+  user.email = 'john.doe@example.com';
+  
+  // Persist changes
+  await user.save();
+  
+  console.log(user.updatedAt); // Timestamp of last update
+}
+```
+
+### Building a Model Step by Step
+
+```typescript
+const product = new Product();
+
+// Set properties one by one
+product.name = 'Wireless Keyboard';
+product.price = 79.99;
+product.category = 'electronics';
+product.stock = 50;
+
+// Save when ready
+await product.save();
+```
+
+### Conditional Updates
+
+```typescript
+const order = await Order.find(orderId);
+
+if (order) {
+  if (order.status === 'pending') {
+    order.status = 'processing';
+    order.processedAt = Date.now();
+    await order.save();
+  }
+}
+```
+
+### Multiple Updates
+
+```typescript
+const post = await BlogPost.find(postId);
+
+if (post) {
+  // First update
+  post.title = 'Updated Title';
+  await post.save();
+  
+  // Later, another update
+  post.status = 'published';
+  post.publishedAt = Date.now();
+  await post.save();
+}
+```
+
+## Timestamps
+
+```typescript
+// New model
+const newPost = new BlogPost();
+newPost.title = 'New Post';
+await newPost.save();
+
+console.log(newPost.createdAt); // Set automatically
+console.log(newPost.updatedAt); // null (not updated yet)
+
+// Update existing model
+newPost.title = 'Updated Post';
+await newPost.save();
+
+console.log(newPost.createdAt); // Original creation time
+console.log(newPost.updatedAt); // Set to current time
+```
+
+## Error Handling
+
+```typescript
+try {
+  const user = new User();
+  user.email = 'invalid-email'; // May fail validation
+  user.name = 'Test User';
+  
+  await user.save();
+} catch (error) {
+  console.error('Failed to save user:', error);
+}
+```
+
+## Comparison: save() vs create()
+
+```typescript
+// Using create() - static method, one step
+const post1 = await BlogPost.create({
+  title: 'My Post',
+  content: 'Content here'
+});
+
+// Using save() - instance method, more control
+const post2 = new BlogPost();
+post2.title = 'My Post';
+post2.content = 'Content here';
+// ... additional logic ...
+await post2.save();
+```
+
+### When to Use Each
+
+**Use `create()`** when:
+- You have all data ready at once
+- You want a single operation
+- You prefer a cleaner, declarative style
+
+**Use `save()`** when:
+- You need to build the model step by step
+- You want to update existing models
+- You need conditional logic before saving
+- You're working with instances from other operations
+
+## Related Methods
+
+- [create()](/api/create) - Create a new model in one step
+- [delete()](/api/delete) - Remove a model from the database
+- [firstOrCreate()](/api/first-or-create) - Find or create a model

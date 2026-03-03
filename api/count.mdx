@@ -1,0 +1,80 @@
+---
+title: 'count()'
+description: 'Count the number of documents in a collection'
+---
+
+## Overview
+
+The `count()` method returns the total number of documents matching the current query. Use it to get document counts without retrieving the actual data.
+
+## Signature
+
+```typescript
+static async count<T extends BaseModel>(
+  this: ObjectType<T>
+): Promise<number>
+```
+
+## Parameters
+
+This method takes no parameters.
+
+## Returns
+
+<ResponseField name="count" type="number" required>
+  The total number of documents matching the query
+</ResponseField>
+
+## Examples
+
+### Count all documents
+
+```typescript
+const userCount = await User.count()
+console.log(`Total users: ${userCount}`)
+```
+
+### Count with filters
+
+```typescript
+// Count active users
+const activeUsers = await User.where('status', 'active').count()
+
+// Count users over 18
+const adults = await User.where('age', '>', 18).count()
+
+// Count premium subscribers
+const premiumCount = await User
+  .where('subscription', 'premium')
+  .where('active', true)
+  .count()
+```
+
+### Count with complex queries
+
+```typescript
+// Count orders in a specific date range
+const recentOrders = await Order
+  .where('createdAt', '>', startDate)
+  .where('createdAt', '<', endDate)
+  .count()
+
+// Count published posts by author
+const publishedPosts = await BlogPost
+  .where('authorId', userId)
+  .where('status', 'published')
+  .count()
+```
+
+## Use Cases
+
+- **Pagination**: Calculate total pages for paginated results
+- **Analytics**: Track totals for dashboards and reports
+- **Validation**: Check if records exist before operations
+- **Performance**: Get counts without loading full documents
+
+## Related Methods
+
+- [sum()](/api/sum-average) - Calculate sum of field values
+- [average()](/api/sum-average) - Calculate average of field values
+- [where()](/api/where) - Filter documents before counting

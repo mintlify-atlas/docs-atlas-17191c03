@@ -1,0 +1,300 @@
+---
+title: "Models"
+description: "Define your data models by extending BaseModel with full TypeScript type safety"
+---
+
+## Overview
+
+Models in Esix are TypeScript classes that represent your MongoDB collections. Each model extends `BaseModel` and automatically inherits powerful querying, CRUD operations, and aggregation methods.
+
+## Defining Models
+
+Create a model by extending `BaseModel` and defining properties with default values:
+
+```typescript
+import { BaseModel } from 'esix'
+
+class User extends BaseModel {
+  public name = ''
+  public email = ''
+  public age = 0
+  public isActive = true
+}
+
+class BlogPost extends BaseModel {
+  public title = ''
+  public content = ''
+  public authorId = ''
+  public tags: string[] = []
+  public publishedAt: Date | null = null
+}
+```
+
+<Note>
+  Default values are required for all properties. These values define both the property's type and its default state when creating new instances.
+</Note>
+
+## Built-in Properties
+
+Every model automatically includes these timestamp properties:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `id` | `string` | Unique identifier (MongoDB's `_id` converted to string) |
+| `createdAt` | `number` | Timestamp when the document was created |
+| `updatedAt` | `number \| null` | Timestamp when the document was last updated |
+
+```typescript
+const user = await User.create({ name: 'John Smith', email: 'john@example.com' })
+
+console.log(user.id)        // '507f1f77bcf86cd799439011'
+console.log(user.createdAt) // 1672574400000
+console.log(user.updatedAt) // null
+```
+
+## Collection Names
+
+Esix automatically determines the MongoDB collection name from your model class name using kebab-case with pluralization:
+
+| Model Class | Collection Name |
+|-------------|----------------|
+| `User` | `users` |
+| `BlogPost` | `blog-posts` |
+| `Product` | `products` |
+
+## Static Query Methods
+
+All models inherit powerful static methods for querying and aggregation:
+
+### Basic Retrieval
+
+```typescript
+// Get all documents
+const users = await User.all()
+
+// Find by ID
+const user = await User.find('507f1f77bcf86cd799439011')
+
+// Find by any field
+const john = await User.findBy('email', 'john@example.com')
+```
+
+### Query Building
+
+```typescript
+// Filter with where clause
+const activeUsers = await User.where('isActive', true).get()
+
+// Comparison operators
+const adults = await User.where('age', '>=', 18).get()
+const youngUsers = await User.where('age', '<', 30).get()
+
+// Multiple conditions
+const youngActiveUsers = await User
+  .where('isActive', true)
+  .where('age', '<', 25)
+  .get()
+
+// Array queries
+const specificUsers = await User.whereIn('id', ['id1', 'id2', 'id3']).get()
+const nonAdmins = await User.whereNotIn('role', ['admin', 'moderator']).get()
+```
+
+### Sorting and Pagination
+
+```typescript
+// Order results
+const orderedUsers = await User.orderBy('createdAt', 'desc').get()
+
+// Limit results
+const firstTen = await User.limit(10).get()
+
+// Skip and limit for pagination
+const page2 = await User.skip(10).limit(10).get()
+```
+
+### Aggregations
+
+```typescript
+// Count documents
+const userCount = await User.count()
+
+// Sum values
+const totalAmount = await Order.sum('amount')
+
+// Calculate average
+const avgAge = await User.average('age')
+
+// Min and max
+const lowestPrice = await Product.min('price')
+const highestScore = await Test.max('score')
+
+// Percentiles
+const p95 = await ResponseTime.percentile('value', 95)
+
+// Extract field values
+const titles = await BlogPost.pluck('title')
+```
+
+### Custom Aggregations
+
+Access MongoDB's aggregation pipeline directly:
+
+```typescript
+const results = await User.aggregate([
+  { $group: { _id: '$department', count: { $sum: 1 } } },
+  { $sort: { count: -1 } }
+])
+```
+
+## Instance Methods
+
+Model instances provide methods for persistence and deletion:
+
+### Creating and Saving
+
+```typescript
+// Create using static method
+const user = await User.create({
+  name: 'John Smith',
+  email: 'john@example.com',
+  age: 30
+})
+
+// Create instance and save
+const post = new BlogPost()
+post.title = 'My First Post'
+post.content = 'Hello world!'
+await post.save()
+```
+
+### Updating
+
+```typescript
+const user = await User.find(userId)
+if (user) {
+  user.age = 31
+  await user.save() // Updates updatedAt timestamp automatically
+}
+```
+
+### Deleting
+
+```typescript
+const user = await User.find(userId)
+if (user) {
+  await user.delete()
+}
+```
+
+## Relationships
+
+Define relationships using the `hasMany` method:
+
+```typescript
+class Author extends BaseModel {
+  public name = ''
+
+  // Define relationship
+  blogPosts() {
+    return this.hasMany(BlogPost, 'authorId')
+  }
+}
+
+class BlogPost extends BaseModel {
+  public title = ''
+  public authorId = ''
+}
+
+// Usage
+const author = await Author.find(authorId)
+const posts = await author.blogPosts().get()
+
+// Chain with queries
+const publishedPosts = await author
+  .blogPosts()
+  .where('publishedAt', '!=', null)
+  .orderBy('publishedAt', 'desc')
+  .get()
+```
+
+The `hasMany` method accepts:
+- **Model class**: The related model type
+- **Foreign key** (optional): Defaults to `camelCase(ModelName)Id`
+- **Local key** (optional): Defaults to `'id'`
+
+## First or Create
+
+Find an existing document or create a new one atomically:
+
+```typescript
+// Find by filter, create with additional attributes if not found
+const user = await User.firstOrCreate(
+  { email: 'john@example.com' },
+  { name: 'John Smith', age: 30 }
+)
+
+// Use filter as attributes when not found
+const settings = await Settings.firstOrCreate({
+  userId: 'user123',
+  theme: 'dark'
+})
+```
+
+## Type Safety
+
+Esix leverages TypeScript's type system to provide compile-time safety:
+
+```typescript
+class User extends BaseModel {
+  public name = ''
+  public age = 0
+}
+
+// ✅ Type-safe queries
+const users = await User.where('age', '>', 18).get() // User[]
+const names = await User.pluck('name') // string[]
+
+// ❌ Compile errors for invalid fields
+const invalid = await User.where('invalidField', 'value') // TypeScript error
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Meaningful Names" icon="tag">
+    Choose descriptive model names that reflect your domain. Esix automatically converts them to appropriate collection names.
+  </Card>
+  
+  <Card title="Set Appropriate Defaults" icon="sliders">
+    Default values should represent the most common initial state for new documents.
+  </Card>
+  
+  <Card title="Leverage TypeScript" icon="code">
+    Define explicit types for complex properties like arrays and nullable fields.
+  </Card>
+  
+  <Card title="Keep Models Focused" icon="bullseye">
+    Each model should represent a single, well-defined entity in your domain.
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/configuration">
+    Configure database connections and environment variables
+  </Card>
+  
+  <Card title="Querying" icon="search" href="/retrieving-models">
+    Learn about advanced query building and filtering
+  </Card>
+  
+  <Card title="Relationships" icon="link" href="/relationships">
+    Explore relationship patterns in depth
+  </Card>
+  
+  <Card title="API Reference" icon="book" href="/api/base-model">
+    Complete BaseModel API documentation
+  </Card>
+</CardGroup>

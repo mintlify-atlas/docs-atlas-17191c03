@@ -1,0 +1,143 @@
+---
+title: 'sum() & average()'
+description: 'Calculate sum and average of numeric field values'
+---
+
+## Overview
+
+The `sum()` and `average()` methods perform mathematical aggregations on numeric fields across your document collection.
+
+## sum()
+
+Calculates the total sum of all values for a specified numeric field.
+
+### Signature
+
+```typescript
+static async sum<T extends BaseModel, K extends keyof T>(
+  this: ObjectType<T>,
+  key: K
+): Promise<number>
+```
+
+### Parameters
+
+<ParamField path="key" type="keyof T" required>
+  The field name to sum. Must be a numeric field.
+</ParamField>
+
+### Returns
+
+<ResponseField name="sum" type="number" required>
+  The sum of all values for the specified field
+</ResponseField>
+
+### Examples
+
+```typescript
+// Calculate total sales
+const totalSales = await Order.sum('amount')
+console.log(`Total revenue: $${totalSales}`)
+
+// Sum with filters
+const monthlySales = await Order
+  .where('createdAt', '>', startOfMonth)
+  .sum('amount')
+
+// Sum specific product category
+const categoryRevenue = await Order
+  .where('category', 'electronics')
+  .sum('totalPrice')
+```
+
+## average()
+
+Calculates the arithmetic mean of all values for a specified numeric field.
+
+### Signature
+
+```typescript
+static async average<T extends BaseModel, K extends keyof T>(
+  this: ObjectType<T>,
+  key: K
+): Promise<number>
+```
+
+### Parameters
+
+<ParamField path="key" type="keyof T" required>
+  The field name to average. Must be a numeric field.
+</ParamField>
+
+### Returns
+
+<ResponseField name="average" type="number" required>
+  The average of all values for the specified field. Returns 0 if no documents match.
+</ResponseField>
+
+### Examples
+
+```typescript
+// Calculate average user age
+const avgAge = await User.average('age')
+console.log(`Average age: ${avgAge}`)
+
+// Average with filters
+const avgScore = await Test
+  .where('subject', 'mathematics')
+  .average('score')
+
+// Average order value
+const avgOrderValue = await Order
+  .where('status', 'completed')
+  .average('amount')
+```
+
+## Combined Examples
+
+```typescript
+// Revenue analytics
+const totalRevenue = await Order.sum('amount')
+const avgOrderValue = await Order.average('amount')
+const orderCount = await Order.count()
+
+console.log(`Total: $${totalRevenue}`)
+console.log(`Average: $${avgOrderValue}`)
+console.log(`Orders: ${orderCount}`)
+
+// Student performance by class
+const classA = await Test.where('class', 'A')
+const avgScoreA = await classA.average('score')
+const totalScoreA = await classA.sum('score')
+
+// Product metrics
+const products = await Product.where('category', 'electronics')
+const avgPrice = await products.average('price')
+const avgRating = await products.average('rating')
+```
+
+## Error Handling
+
+Both methods throw an error if the specified field contains non-numeric values:
+
+```typescript
+try {
+  const avg = await User.average('name') // Error: field is not numeric
+} catch (error) {
+  console.error('All values must be numbers:', error.message)
+}
+```
+
+## Use Cases
+
+- **Financial Reports**: Calculate revenue, expenses, and averages
+- **Analytics**: Track metrics like average order value or total sales
+- **Performance Metrics**: Monitor average response times or scores
+- **Inventory**: Calculate total stock values and average prices
+
+## Related Methods
+
+- [count()](/api/count) - Count documents
+- [min()](/api/min-max) - Find minimum value
+- [max()](/api/min-max) - Find maximum value
+- [percentile()](/api/percentile) - Calculate percentiles

@@ -1,0 +1,272 @@
+---
+title: 'percentile() & aggregate()'
+description: 'Advanced aggregation methods for statistical analysis'
+---
+
+## Overview
+
+These methods provide advanced aggregation capabilities: `percentile()` for statistical analysis and `aggregate()` for direct access to MongoDB's aggregation pipeline.
+
+## percentile()
+
+Calculates the nth percentile of values for a specified numeric field. Useful for understanding data distribution and performance metrics.
+
+### Signature
+
+```typescript
+static async percentile<T extends BaseModel, K extends keyof T>(
+  this: ObjectType<T>,
+  key: K,
+  n: number
+): Promise<number>
+```
+
+### Parameters
+
+<ParamField path="key" type="keyof T" required>
+  The field name to calculate the percentile for. Must be a numeric field.
+</ParamField>
+
+<ParamField path="n" type="number" required>
+  The percentile to calculate (0-100). Common values: 50 (median), 95 (p95), 99 (p99).
+</ParamField>
+
+### Returns
+
+<ResponseField name="percentile" type="number" required>
+  The value at the specified percentile. Returns 0 if no documents match.
+</ResponseField>
+
+### Examples
+
+```typescript
+// Calculate median response time (50th percentile)
+const median = await ResponseTime.percentile('value', 50)
+console.log(`Median response time: ${median}ms`)
+
+// Calculate p95 (95th percentile) - common SLA metric
+const p95 = await ResponseTime.percentile('value', 95)
+console.log(`95% of requests complete within: ${p95}ms`)
+
+// Calculate p99 for high-precision monitoring
+const p99 = await ResponseTime.percentile('value', 99)
+
+// Percentile with filters
+const apiP95 = await ResponseTime
+  .where('endpoint', '/api/users')
+  .percentile('duration', 95)
+```
+
+### Common Percentile Values
+
+```typescript
+// Performance monitoring dashboard
+const metrics = await ApiMetric.where('date', today)
+
+const p50 = await metrics.percentile('responseTime', 50)  // Median
+const p90 = await metrics.percentile('responseTime', 90)  // 90th percentile
+const p95 = await metrics.percentile('responseTime', 95)  // 95th percentile
+const p99 = await metrics.percentile('responseTime', 99)  // 99th percentile
+
+console.log('Response Time Percentiles:')
+console.log(`p50: ${p50}ms`)
+console.log(`p90: ${p90}ms`)
+console.log(`p95: ${p95}ms`)
+console.log(`p99: ${p99}ms`)
+```
+
+## aggregate()
+
+Provides direct access to MongoDB's powerful aggregation pipeline for complex data transformations and analysis.
+
+### Signature
+
+```typescript
+static async aggregate<T extends BaseModel>(
+  this: ObjectType<T>,
+  stages: Record<string, unknown>[]
+): Promise<any[]>
+```
+
+### Parameters
+
+<ParamField path="stages" type="Record<string, unknown>[]" required>
+  An array of MongoDB aggregation pipeline stages. Each stage is an object with a single operator key.
+</ParamField>
+
+### Returns
+
+<ResponseField name="results" type="any[]" required>
+  Array of aggregation results. The structure depends on your pipeline stages.
+</ResponseField>
+
+### Examples
+
+#### Group and Count
+
+```typescript
+// Count users by department
+const results = await User.aggregate([
+  { $group: { _id: '$department', count: { $sum: 1 } } }
+])
+
+console.log(results)
+// [
+//   { _id: 'Engineering', count: 45 },
+//   { _id: 'Sales', count: 32 },
+//   { _id: 'Marketing', count: 18 }
+// ]
+```
+
+#### Average by Category
+
+```typescript
+// Calculate average price per product category
+const avgPrices = await Product.aggregate([
+  {
+    $group: {
+      _id: '$category',
+      avgPrice: { $avg: '$price' },
+      count: { $sum: 1 }
+    }
+  },
+  { $sort: { avgPrice: -1 } }
+])
+```
+
+#### Complex Pipeline
+
+```typescript
+// Sales analytics with multiple stages
+const salesReport = await Order.aggregate([
+  // Filter completed orders from last month
+  {
+    $match: {
+      status: 'completed',
+      createdAt: { $gte: startOfMonth }
+    }
+  },
+  // Group by product and calculate metrics
+  {
+    $group: {
+      _id: '$productId',
+      totalRevenue: { $sum: '$amount' },
+      orderCount: { $sum: 1 },
+      avgOrderValue: { $avg: '$amount' }
+    }
+  },
+  // Sort by revenue
+  { $sort: { totalRevenue: -1 } },
+  // Limit to top 10
+  { $limit: 10 }
+])
+```
+
+#### Join Collections (Lookup)
+
+```typescript
+// Join users with their orders
+const usersWithOrders = await User.aggregate([
+  {
+    $lookup: {
+      from: 'orders',
+      localField: '_id',
+      foreignField: 'userId',
+      as: 'orders'
+    }
+  },
+  {
+    $project: {
+      name: 1,
+      email: 1,
+      orderCount: { $size: '$orders' },
+      totalSpent: { $sum: '$orders.amount' }
+    }
+  }
+])
+```
+
+#### Date-based Aggregation
+
+```typescript
+// Daily revenue for the last 30 days
+const dailyRevenue = await Order.aggregate([
+  {
+    $match: {
+      createdAt: { $gte: thirtyDaysAgo }
+    }
+  },
+  {
+    $group: {
+      _id: {
+        $dateToString: { format: '%Y-%m-%d', date: '$createdAt' }
+      },
+      revenue: { $sum: '$amount' },
+      orders: { $sum: 1 }
+    }
+  },
+  { $sort: { _id: 1 } }
+])
+```
+
+## Combined Usage
+
+```typescript
+// Comprehensive performance analysis
+class PerformanceMonitor {
+  static async getMetrics(endpoint: string) {
+    const metrics = await ApiMetric.where('endpoint', endpoint)
+    
+    return {
+      count: await metrics.count(),
+      min: await metrics.min('responseTime'),
+      max: await metrics.max('responseTime'),
+      avg: await metrics.average('responseTime'),
+      p50: await metrics.percentile('responseTime', 50),
+      p95: await metrics.percentile('responseTime', 95),
+      p99: await metrics.percentile('responseTime', 99)
+    }
+  }
+  
+  static async getTopSlowestEndpoints() {
+    return await ApiMetric.aggregate([
+      {
+        $group: {
+          _id: '$endpoint',
+          avgTime: { $avg: '$responseTime' },
+          p95: { $percentile: { input: '$responseTime', p: [0.95] } }
+        }
+      },
+      { $sort: { avgTime: -1 } },
+      { $limit: 10 }
+    ])
+  }
+}
+```
+
+## Use Cases
+
+### percentile()
+- **SLA Monitoring**: Track p95/p99 response times
+- **Performance Analysis**: Understand distribution of metrics
+- **Capacity Planning**: Identify outliers and trends
+- **Quality Metrics**: Analyze test scores and ratings
+
+### aggregate()
+- **Business Intelligence**: Complex reporting and analytics
+- **Data Transformation**: Reshape data for different views
+- **Multi-collection Analysis**: Join and analyze related data
+- **Time-series Analysis**: Aggregate metrics over time periods
+
+## Related Methods
+
+- [sum()](/api/sum-average) - Calculate sum of values
+- [average()](/api/sum-average) - Calculate average of values
+- [min()](/api/min-max) - Find minimum value
+- [max()](/api/min-max) - Find maximum value
+- [count()](/api/count) - Count documents
+
+## Additional Resources
+
+- [MongoDB Aggregation Pipeline](https://www.mongodb.com/docs/manual/core/aggregation-pipeline/)
+- [MongoDB Aggregation Operators](https://www.mongodb.com/docs/manual/reference/operator/aggregation/)

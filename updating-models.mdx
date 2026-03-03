@@ -1,0 +1,167 @@
+---
+title: 'Updating Models'
+description: 'Learn how to update and persist model changes using the save() method'
+---
+
+## Overview
+
+The `save()` method persists changes to your model instances. It works for both creating new models and updating existing ones, automatically handling timestamps and upsert operations.
+
+## Method Signature
+
+```typescript packages/esix/src/base-model.ts
+async save(): Promise<void>
+```
+
+## Creating New Models
+
+When you call `save()` on a new instance (without an `id`), Esix creates a new document in the database:
+
+```typescript
+const post = new Post();
+
+post.title = 'My Second Blog Post!';
+post.content = 'This is the content of my post.';
+
+await post.save();
+
+console.log(post.id);        // Auto-generated ID
+console.log(post.createdAt); // Current timestamp
+```
+
+## Updating Existing Models
+
+When you call `save()` on an existing model (with an `id`), Esix updates the existing document:
+
+<CodeGroup>
+
+```typescript Fetch and Update
+const book = await Book.find('5f3568f2a0cdd1c9ba411c43');
+
+if (book) {
+  book.title = 'Updated Title';
+  book.pages = 350;
+  
+  await book.save();
+  
+  console.log(book.updatedAt); // Current timestamp
+}
+```
+
+```typescript Update Multiple Fields
+const user = await User.findBy('email', 'john@example.com');
+
+if (user) {
+  user.name = 'John Smith';
+  user.age = 30;
+  user.status = 'active';
+  
+  await user.save();
+}
+```
+
+</CodeGroup>
+
+## Automatic Timestamps
+
+The `save()` method automatically manages timestamps:
+
+- **New models** (no `id`): Sets `createdAt` to current time
+- **Existing models** (has `id`): Updates `updatedAt` to current time
+
+```typescript
+const book = new Book();
+book.title = 'Emma';
+book.isbn = '9780141439600';
+
+await book.save();
+
+console.log(book.createdAt); // 1672574400000
+console.log(book.updatedAt); // null (not updated yet)
+
+// Later, update the book
+book.pages = 448;
+await book.save();
+
+console.log(book.createdAt); // 1672574400000 (unchanged)
+console.log(book.updatedAt); // 1672578000000 (new timestamp)
+```
+
+## Upsert Behavior
+
+Esix uses MongoDB's upsert functionality under the hood. This means:
+
+1. If a document with the model's `id` exists, it gets updated
+2. If no document exists, a new one is created
+
+This provides a safe way to persist models without worrying about whether they already exist in the database.
+
+## Working with Partial Updates
+
+You can modify only specific fields and call `save()` - unchanged fields remain intact:
+
+```typescript
+const post = await BlogPost.find('post-123');
+
+if (post) {
+  // Only update the title
+  post.title = 'New Title';
+  
+  await post.save();
+  
+  // All other fields (content, status, etc.) remain unchanged
+}
+```
+
+## Comparison with create()
+
+There are two main approaches to creating models:
+
+<CodeGroup>
+
+```typescript Using save()
+const post = new Post();
+post.title = 'My Post';
+post.content = 'Content here';
+
+await post.save();
+```
+
+```typescript Using create()
+const post = await BlogPost.create({
+  title: 'My Post',
+  content: 'Content here'
+});
+```
+
+</CodeGroup>
+
+<Note>
+Use `create()` when you want to create and persist in a single operation. Use `save()` when you need more control over the model instance before persisting, or when updating existing models.
+</Note>
+
+## Error Handling
+
+Always handle potential errors when saving:
+
+```typescript
+try {
+  const book = new Book();
+  book.title = 'New Book';
+  
+  await book.save();
+} catch (error) {
+  console.error('Failed to save model:', error);
+}
+```
+
+## Related Methods
+
+<CardGroup cols={2}>
+  <Card title="Creating Models" icon="plus" href="/creating-models">
+    Learn about the create() method
+  </Card>
+  <Card title="Deleting Models" icon="trash" href="/deleting-models">
+    Remove models from the database
+  </Card>
+</CardGroup>

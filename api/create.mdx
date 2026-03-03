@@ -1,0 +1,90 @@
+---
+title: 'create()'
+description: 'Create and persist a new model instance to the database'
+---
+
+## Method Signature
+
+```typescript
+static async create<T extends BaseModel>(
+  attributes: Partial<T>
+): Promise<T>
+```
+
+Creates a new model with the given attributes and saves it to the database. The ID will be automatically generated if none is provided. The `createdAt` timestamp is set automatically.
+
+## Parameters
+
+<ParamField path="attributes" type="Partial<T>" required>
+  An object containing the attributes for the new model. All properties are optional since this is a partial type.
+</ParamField>
+
+## Returns
+
+<ResponseField name="model" type="Promise<T>">
+  Returns a promise that resolves to the newly created model instance with all database-generated fields populated (id, createdAt).
+</ResponseField>
+
+## Examples
+
+### Basic Creation
+
+```typescript
+const post = await BlogPost.create({ 
+  title: 'My First Blog Post!',
+  content: 'This is the content of my post.',
+  status: 'draft'
+});
+
+console.log(post.id); // Auto-generated ID
+console.log(post.createdAt); // Timestamp
+```
+
+### With Default Values
+
+```typescript
+// Model definition with defaults
+class User extends BaseModel {
+  name = '';
+  email = '';
+  role = 'user'; // Default value
+  isActive = true; // Default value
+}
+
+// Create with only required fields
+const user = await User.create({
+  name: 'John Smith',
+  email: 'john@example.com'
+});
+
+console.log(user.role); // 'user' (default)
+console.log(user.isActive); // true (default)
+```
+
+### With All Fields
+
+```typescript
+const product = await Product.create({
+  name: 'Wireless Mouse',
+  price: 29.99,
+  stock: 150,
+  category: 'electronics',
+  sku: 'WM-001'
+});
+```
+
+## Error Handling
+
+```typescript
+try {
+  const post = await BlogPost.create({ title: 'New Post' });
+} catch (error) {
+  // Throws if database creation fails
+  console.error('Failed to create model:', error);
+}
+```
+
+## Related Methods
+
+- [save()](/api/save) - Save changes to an existing model or create a new one
+- [firstOrCreate()](/api/first-or-create) - Find or create a model

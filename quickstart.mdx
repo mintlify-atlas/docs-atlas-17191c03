@@ -1,80 +1,660 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Get started with Esix and build your first MongoDB application in minutes
 ---
 
-## Get started in three steps
+## Overview
 
-Get your documentation site running locally and make your first customization.
+This quickstart guide will walk you through building a complete blogging application with Esix. You'll learn how to define models, perform CRUD operations, query data, and work with relationships.
 
-### Step 1: Set up your local environment
+By the end of this tutorial, you'll have a working blog application with authors, posts, and the ability to query, filter, and aggregate data.
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+## Prerequisites
 
-### Step 2: Deploy your changes
+Before you begin, make sure you have:
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+- Node.js 20 or higher installed
+- MongoDB 4.0+ running locally or a MongoDB Atlas account
+- Basic TypeScript knowledge
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+## Installation
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+Install Esix and MongoDB driver:
 
-### Step 3: Go live
+<CodeGroup>
+```bash npm
+npm install esix mongodb
+```
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+```bash yarn
+yarn add esix mongodb
+```
 
-## Next steps
+```bash pnpm
+pnpm add esix mongodb
+```
+</CodeGroup>
 
-Now that you have your docs running, explore these key features:
+## Configuration
 
-<CardGroup cols={2}>
+Set your MongoDB connection string as an environment variable:
 
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
+```bash
+export DB_URL=mongodb://localhost:27017/blog
+```
 
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
+For MongoDB Atlas:
 
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+```bash
+export DB_URL=mongodb+srv://username:password@cluster.mongodb.net/blog
+```
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+That's it! No configuration files, no decorators—just set your connection string and you're ready to go.
 </Note>
+
+## Define Your Models
+
+Create a file called `models.ts` and define your data models by extending `BaseModel`:
+
+```typescript models.ts
+import { BaseModel } from 'esix'
+
+class Author extends BaseModel {
+  public name = ''
+  public email = ''
+  public bio = ''
+  public isActive = true
+
+  // Define relationship to posts
+  posts() {
+    return this.hasMany(Post, 'authorId')
+  }
+}
+
+class Post extends BaseModel {
+  public title = ''
+  public content = ''
+  public authorId = ''
+  public tags: string[] = []
+  public views = 0
+  public publishedAt: Date | null = null
+}
+
+export { Author, Post }
+```
+
+<Info>
+Every model automatically includes `id`, `createdAt`, and `updatedAt` fields. You don't need to define them.
+</Info>
+
+## Create Records
+
+Let's create some authors and posts:
+
+```typescript
+import { Author, Post } from './models'
+
+// Create an author
+const author = await Author.create({
+  name: 'Jane Doe',
+  email: 'jane@example.com',
+  bio: 'Technology writer and blogger'
+})
+
+console.log(`Created author with ID: ${author.id}`)
+
+// Create posts for this author
+const post1 = await Post.create({
+  title: 'Getting Started with TypeScript',
+  content: 'TypeScript is a powerful superset of JavaScript...',
+  authorId: author.id,
+  tags: ['typescript', 'programming'],
+  publishedAt: new Date()
+})
+
+const post2 = await Post.create({
+  title: 'MongoDB Best Practices',
+  content: 'Learn how to structure your MongoDB databases...',
+  authorId: author.id,
+  tags: ['mongodb', 'database'],
+  publishedAt: new Date()
+})
+
+console.log(`Created ${2} posts`)
+```
+
+## Query Data
+
+Now let's retrieve and filter our data:
+
+### Find by ID
+
+```typescript
+// Find a specific author
+const foundAuthor = await Author.find(author.id)
+console.log(`Found: ${foundAuthor?.name}`)
+
+// Find a specific post
+const foundPost = await Post.find(post1.id)
+console.log(`Found: ${foundPost?.title}`)
+```
+
+### Find by Field
+
+```typescript
+// Find author by email
+const author = await Author.findBy('email', 'jane@example.com')
+console.log(`Author: ${author?.name}`)
+```
+
+### Get All Records
+
+```typescript
+// Get all authors
+const allAuthors = await Author.all()
+console.log(`Total authors: ${allAuthors.length}`)
+
+// Get all posts
+const allPosts = await Post.all()
+console.log(`Total posts: ${allPosts.length}`)
+```
+
+## Filter with Where Clauses
+
+Use the `where()` method to filter records:
+
+### Equality Filters
+
+```typescript
+// Find active authors
+const activeAuthors = await Author.where('isActive', true).get()
+
+// Find posts with specific tag
+const typescriptPosts = await Post.where('tags', ['typescript', 'programming']).get()
+```
+
+### Comparison Operators
+
+Esix supports all standard comparison operators:
+
+```typescript
+// Posts with more than 100 views
+const popularPosts = await Post.where('views', '>', 100).get()
+
+// Posts with at least 50 views
+const moderatelyPopular = await Post.where('views', '>=', 50).get()
+
+// Posts with fewer than 10 views
+const lowViewPosts = await Post.where('views', '<', 10).get()
+
+// Posts that are not null
+const publishedPosts = await Post.where('publishedAt', '!=', null).get()
+```
+
+### Chaining Conditions
+
+Combine multiple conditions for complex queries:
+
+```typescript
+// Find published posts with high views
+const topPublishedPosts = await Post
+  .where('publishedAt', '!=', null)
+  .where('views', '>', 100)
+  .get()
+
+// Find active authors with specific email domain
+const companyAuthors = await Author
+  .where('isActive', true)
+  .where('email', 'jane@example.com')
+  .get()
+```
+
+### Array Queries
+
+Query records where a field matches any value in an array:
+
+```typescript
+// Find posts by multiple IDs
+const specificPosts = await Post
+  .whereIn('id', [post1.id, post2.id])
+  .get()
+
+// Find posts excluding certain tags
+const filteredPosts = await Post
+  .whereNotIn('tags', ['draft', 'archived'])
+  .get()
+```
+
+## Sorting and Pagination
+
+Control the order and number of results:
+
+### Sort Results
+
+```typescript
+// Latest posts first
+const latestPosts = await Post
+  .orderBy('createdAt', 'desc')
+  .get()
+
+// Most viewed posts
+const topPosts = await Post
+  .orderBy('views', 'desc')
+  .get()
+
+// Alphabetically by title
+const alphabeticalPosts = await Post
+  .orderBy('title', 'asc')
+  .get()
+```
+
+### Limit and Skip
+
+```typescript
+// Get first 10 posts
+const firstPage = await Post.limit(10).get()
+
+// Get second page (posts 11-20)
+const secondPage = await Post.skip(10).limit(10).get()
+
+// Get top 5 most viewed posts
+const top5 = await Post
+  .orderBy('views', 'desc')
+  .limit(5)
+  .get()
+```
+
+### Get First Result
+
+```typescript
+// Get the first matching post
+const firstPublished = await Post
+  .where('publishedAt', '!=', null)
+  .orderBy('publishedAt', 'asc')
+  .first()
+
+console.log(`First published post: ${firstPublished?.title}`)
+```
+
+## Update Records
+
+Modify existing records using the `save()` method:
+
+```typescript
+// Find a post
+const post = await Post.find(post1.id)
+
+if (post) {
+  // Update properties
+  post.views = post.views + 1
+  post.title = 'Getting Started with TypeScript (Updated)'
+  
+  // Save changes
+  await post.save()
+  
+  console.log(`Updated post. Views: ${post.views}`)
+  console.log(`Updated at: ${post.updatedAt}`)
+}
+```
+
+<Info>
+The `save()` method automatically updates the `updatedAt` timestamp.
+</Info>
+
+## Delete Records
+
+Remove records using the `delete()` method:
+
+```typescript
+// Find and delete a post
+const postToDelete = await Post.find(post2.id)
+
+if (postToDelete) {
+  await postToDelete.delete()
+  console.log('Post deleted successfully')
+}
+```
+
+## Work with Relationships
+
+Use the `hasMany()` method to query related records:
+
+```typescript
+// Get all posts by an author
+const author = await Author.find(author.id)
+const authorPosts = await author.posts().get()
+
+console.log(`${author.name} has ${authorPosts.length} posts`)
+
+// Get only published posts by this author
+const publishedPosts = await author
+  .posts()
+  .where('publishedAt', '!=', null)
+  .get()
+
+// Get the author's most popular posts
+const popularPosts = await author
+  .posts()
+  .where('views', '>', 50)
+  .orderBy('views', 'desc')
+  .limit(5)
+  .get()
+
+// Count author's posts
+const postCount = await author.posts().count()
+console.log(`Total posts: ${postCount}`)
+```
+
+## Aggregations
+
+Perform calculations across your data:
+
+### Count
+
+```typescript
+// Count all posts
+const totalPosts = await Post.count()
+
+// Count published posts
+const publishedCount = await Post
+  .where('publishedAt', '!=', null)
+  .count()
+
+console.log(`${publishedCount} of ${totalPosts} posts are published`)
+```
+
+### Sum
+
+```typescript
+// Total views across all posts
+const totalViews = await Post.sum('views')
+console.log(`Total views: ${totalViews}`)
+
+// Total views for an author's posts
+const authorViews = await author.posts().sum('views')
+console.log(`Author's total views: ${authorViews}`)
+```
+
+### Average
+
+```typescript
+// Average views per post
+const avgViews = await Post.average('views')
+console.log(`Average views per post: ${avgViews}`)
+
+// Average for published posts only
+const avgPublishedViews = await Post
+  .where('publishedAt', '!=', null)
+  .average('views')
+```
+
+### Min and Max
+
+```typescript
+// Lowest and highest view counts
+const minViews = await Post.min('views')
+const maxViews = await Post.max('views')
+
+console.log(`View range: ${minViews} to ${maxViews}`)
+```
+
+### Percentiles
+
+```typescript
+// 95th percentile of post views
+const p95Views = await Post.percentile('views', 95)
+console.log(`95% of posts have fewer than ${p95Views} views`)
+
+// Median views
+const medianViews = await Post.percentile('views', 50)
+console.log(`Median views: ${medianViews}`)
+```
+
+### Extract Field Values
+
+```typescript
+// Get all post titles
+const titles = await Post.pluck('title')
+console.log('All titles:', titles)
+
+// Get all unique tags (you'll need to flatten the array)
+const allTags = await Post.pluck('tags')
+const uniqueTags = [...new Set(allTags.flat())]
+console.log('Unique tags:', uniqueTags)
+```
+
+## First or Create
+
+Find an existing record or create it if it doesn't exist:
+
+```typescript
+// Find author by email, create if not found
+const author = await Author.firstOrCreate(
+  { email: 'john@example.com' },
+  { 
+    name: 'John Smith',
+    bio: 'Software developer',
+    isActive: true
+  }
+)
+
+console.log(author.createdAt === author.updatedAt 
+  ? 'Created new author' 
+  : 'Found existing author')
+
+// When attributes aren't provided, filter is used as attributes
+const defaultPost = await Post.firstOrCreate({
+  title: 'Welcome Post',
+  content: 'Welcome to our blog!',
+  authorId: author.id,
+  tags: ['welcome']
+})
+```
+
+## Custom Aggregations
+
+For complex queries, use MongoDB's aggregation pipeline directly:
+
+```typescript
+// Group posts by author and count
+const postsByAuthor = await Post.aggregate([
+  {
+    $group: {
+      _id: '$authorId',
+      count: { $sum: 1 },
+      totalViews: { $sum: '$views' }
+    }
+  },
+  {
+    $sort: { count: -1 }
+  }
+])
+
+console.log('Posts by author:', postsByAuthor)
+
+// Get most common tags
+const tagStats = await Post.aggregate([
+  { $unwind: '$tags' },
+  {
+    $group: {
+      _id: '$tags',
+      count: { $sum: 1 }
+    }
+  },
+  { $sort: { count: -1 } },
+  { $limit: 5 }
+])
+
+console.log('Top 5 tags:', tagStats)
+```
+
+## Complete Example
+
+Here's a complete working example that puts it all together:
+
+```typescript blog.ts
+import { BaseModel } from 'esix'
+
+// Define models
+class Author extends BaseModel {
+  public name = ''
+  public email = ''
+  public bio = ''
+  public isActive = true
+
+  posts() {
+    return this.hasMany(Post, 'authorId')
+  }
+}
+
+class Post extends BaseModel {
+  public title = ''
+  public content = ''
+  public authorId = ''
+  public tags: string[] = []
+  public views = 0
+  public publishedAt: Date | null = null
+}
+
+async function main() {
+  // Create an author
+  const author = await Author.firstOrCreate(
+    { email: 'jane@example.com' },
+    {
+      name: 'Jane Doe',
+      bio: 'Technology writer and blogger',
+      isActive: true
+    }
+  )
+
+  console.log(`Author: ${author.name} (${author.id})`)
+
+  // Create posts
+  const post1 = await Post.create({
+    title: 'Getting Started with TypeScript',
+    content: 'TypeScript is a powerful superset of JavaScript that adds static typing...',
+    authorId: author.id,
+    tags: ['typescript', 'programming', 'tutorial'],
+    views: 150,
+    publishedAt: new Date()
+  })
+
+  const post2 = await Post.create({
+    title: 'MongoDB Best Practices',
+    content: 'Learn how to structure your MongoDB databases for optimal performance...',
+    authorId: author.id,
+    tags: ['mongodb', 'database', 'tutorial'],
+    views: 230,
+    publishedAt: new Date()
+  })
+
+  const post3 = await Post.create({
+    title: 'Advanced TypeScript Patterns',
+    content: 'Dive deep into advanced TypeScript patterns and techniques...',
+    authorId: author.id,
+    tags: ['typescript', 'advanced', 'patterns'],
+    views: 89,
+    publishedAt: null // Draft post
+  })
+
+  // Query published posts
+  console.log('\n=== Published Posts ===')
+  const publishedPosts = await Post
+    .where('publishedAt', '!=', null)
+    .orderBy('views', 'desc')
+    .get()
+
+  publishedPosts.forEach(post => {
+    console.log(`- ${post.title} (${post.views} views)`)
+  })
+
+  // Get author's stats
+  console.log('\n=== Author Stats ===')
+  const totalPosts = await author.posts().count()
+  const totalViews = await author.posts().sum('views')
+  const avgViews = await author.posts().average('views')
+
+  console.log(`Total posts: ${totalPosts}`)
+  console.log(`Total views: ${totalViews}`)
+  console.log(`Average views: ${avgViews.toFixed(1)}`)
+
+  // Find most popular post
+  console.log('\n=== Most Popular Post ===')
+  const topPost = await author
+    .posts()
+    .where('publishedAt', '!=', null)
+    .orderBy('views', 'desc')
+    .first()
+
+  if (topPost) {
+    console.log(`${topPost.title} - ${topPost.views} views`)
+  }
+
+  // Update a post
+  console.log('\n=== Updating Post ===')
+  const postToUpdate = await Post.find(post1.id)
+  if (postToUpdate) {
+    postToUpdate.views += 25
+    await postToUpdate.save()
+    console.log(`Updated views: ${postToUpdate.views}`)
+  }
+
+  // Get tag statistics
+  console.log('\n=== Tag Statistics ===')
+  const tagStats = await Post.aggregate([
+    { $match: { publishedAt: { $ne: null } } },
+    { $unwind: '$tags' },
+    {
+      $group: {
+        _id: '$tags',
+        count: { $sum: 1 },
+        totalViews: { $sum: '$views' }
+      }
+    },
+    { $sort: { totalViews: -1 } }
+  ])
+
+  tagStats.forEach((stat: any) => {
+    console.log(`${stat._id}: ${stat.count} posts, ${stat.totalViews} views`)
+  })
+}
+
+main().catch(console.error)
+```
+
+Run it:
+
+```bash
+npx tsx blog.ts
+```
+
+## Next Steps
+
+Now that you've built your first Esix application, explore these topics to learn more:
+
+<CardGroup cols={2}>
+  <Card title="Models" icon="database" href="/models">
+    Deep dive into model definitions, built-in properties, and conventions
+  </Card>
+  
+  <Card title="Query Builder" icon="magnifying-glass" href="/query-builder">
+    Master the query builder with advanced filtering and sorting techniques
+  </Card>
+  
+  <Card title="Relationships" icon="link" href="/relationships">
+    Learn about defining and querying relationships between models
+  </Card>
+  
+  <Card title="Aggregations" icon="chart-line" href="/aggregations">
+    Explore aggregation functions and custom pipelines for data analysis
+  </Card>
+  
+  <Card title="Security" icon="shield" href="/security">
+    Understand how Esix protects against NoSQL injection attacks
+  </Card>
+  
+  <Card title="Testing" icon="flask" href="/testing">
+    Set up testing with mock adapters and test databases
+  </Card>
+</CardGroup>

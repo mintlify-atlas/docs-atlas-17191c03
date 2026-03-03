@@ -1,0 +1,228 @@
+---
+title: Filtering
+description: Filter your MongoDB queries using where clauses and comparison operators
+---
+
+Esix provides powerful filtering capabilities that make it easy to query your MongoDB collections with type-safe, chainable methods.
+
+## Basic Where Clause
+
+The `where()` method filters models by exact field matches:
+
+```typescript
+const publishedPosts = await BlogPost.where('status', 'published').get();
+```
+
+### Chaining Multiple Conditions
+
+You can chain multiple `where()` calls to combine conditions:
+
+```typescript
+const posts = await BlogPost
+  .where('authorId', 'author-123')
+  .where('status', 'published')
+  .get();
+```
+
+## Comparison Operators
+
+Esix supports a three-parameter syntax for comparison operations, similar to Laravel Eloquent:
+
+### Greater Than (>)
+
+```typescript
+const seniorUsers = await User.where('age', '>', 65).get();
+const expensiveProducts = await Product.where('price', '>', 100).get();
+```
+
+### Greater Than or Equal (>=)
+
+```typescript
+const adults = await User.where('age', '>=', 18).get();
+const premiumProducts = await Product.where('price', '>=', 50).get();
+```
+
+### Less Than (&lt;)
+
+```typescript
+const youngUsers = await User.where('age', '<', 30).get();
+const affordableProducts = await Product.where('price', '<', 25).get();
+```
+
+### Less Than or Equal (&lt;=)
+
+```typescript
+const budgetProducts = await Product.where('price', '<=', 50).get();
+const children = await User.where('age', '<=', 12).get();
+```
+
+### Not Equal (!= or &lt;&gt;)
+
+Both `!=` and `<>` operators are supported:
+
+```typescript
+const activeUsers = await User.where('status', '!=', 'banned').get();
+const nonDraftPosts = await BlogPost.where('status', '<>', 'draft').get();
+```
+
+### Equal (=)
+
+The explicit equality operator can be used for consistency:
+
+```typescript
+const publishedPosts = await BlogPost.where('status', '=', 'published').get();
+
+// Equivalent to the two-parameter syntax:
+const publishedPosts = await BlogPost.where('status', 'published').get();
+```
+
+## Method Signature
+
+```typescript
+static where<T extends BaseModel, K extends keyof T>(
+  this: ObjectType<T>,
+  key: K,
+  value: any
+): QueryBuilder<T>
+
+static where<T extends BaseModel, K extends keyof T>(
+  this: ObjectType<T>,
+  key: K,
+  operator: ComparisonOperator,
+  value: any
+): QueryBuilder<T>
+```
+
+Source: `packages/esix/src/base-model.ts:339`
+
+<Info>
+  Comparison operators are translated to MongoDB operators: `$gt`, `$gte`, `$lt`, `$lte`, and `$ne`.
+</Info>
+
+## Range Queries
+
+Combine comparison operators to query ranges:
+
+```typescript
+// Working age population (18-65)
+const workingAge = await User
+  .where('age', '>=', 18)
+  .where('age', '<=', 65)
+  .get();
+
+// Products in a price range
+const midRangeProducts = await Product
+  .where('price', '>', 50)
+  .where('price', '<', 200)
+  .get();
+```
+
+## Where In
+
+The `whereIn()` method filters models where a field's value is in an array:
+
+```typescript
+const posts = await BlogPost
+  .whereIn('id', ['5f0ae...b340', '5f0ae...a920', '5f0ae...b341'])
+  .get();
+
+const widgets = await Product
+  .whereIn('categoryId', [1, 2, 3])
+  .get();
+```
+
+### Method Signature
+
+```typescript
+static whereIn<T extends BaseModel, K extends keyof T>(
+  this: ObjectType<T>,
+  key: K,
+  values: any[]
+): QueryBuilder<T>
+```
+
+Source: `packages/esix/src/base-model.ts:377`
+
+## Where Not In
+
+The `whereNotIn()` method filters models where a field's value is **not** in an array:
+
+```typescript
+const users = await User
+  .whereNotIn('id', ['banned-user-1', 'banned-user-2'])
+  .get();
+
+const products = await Product
+  .whereNotIn('categoryId', [99, 100])
+  .get();
+```
+
+### Method Signature
+
+```typescript
+static whereNotIn<T extends BaseModel, K extends keyof T>(
+  this: ObjectType<T>,
+  key: K,
+  values: any[]
+): QueryBuilder<T>
+```
+
+Source: `packages/esix/src/base-model.ts:398`
+
+<Warning>
+  Empty arrays in `whereIn()` return no results, while empty arrays in `whereNotIn()` return all results.
+</Warning>
+
+## Complex Filtering Example
+
+Combine multiple filtering methods for complex queries:
+
+```typescript
+class Product extends BaseModel {
+  public name = '';
+  public price = 0;
+  public categoryId?: number;
+  public inStock = true;
+}
+
+// Find affordable, in-stock products from specific categories
+const products = await Product
+  .whereIn('categoryId', [1, 2, 3])
+  .where('price', '<=', 100)
+  .where('inStock', true)
+  .orderBy('price', 'asc')
+  .get();
+
+// Find products excluding certain categories and price range
+const exclusiveProducts = await Product
+  .whereNotIn('categoryId', [99, 100])
+  .where('price', '>', 200)
+  .where('price', '<', 1000)
+  .get();
+```
+
+## MongoDB Operators
+
+Here's how Esix comparison operators map to MongoDB:
+
+| Esix Operator | MongoDB Operator | Description |
+|---------------|------------------|-------------|
+| `=` | Direct equality | Equal to |
+| `!=` or `<>` | `$ne` | Not equal to |
+| `>` | `$gt` | Greater than |
+| `>=` | `$gte` | Greater than or equal |
+| `<` | `$lt` | Less than |
+| `<=` | `$lte` | Less than or equal |
+
+Source: `packages/esix/src/query-builder.ts:469`
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Pagination" icon="list" href="/pagination">
+    Learn how to paginate results with limit and skip
+  </Card>
+  <Card title="Aggregations" icon="calculator" href="/aggregations">
+    Perform calculations on your data with aggregation methods
+  </Card>
+</CardGroup>

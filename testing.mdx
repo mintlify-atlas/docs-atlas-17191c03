@@ -1,0 +1,457 @@
+---
+title: "Testing"
+description: "Test your models with the built-in mock database adapter"
+---
+
+## Overview
+
+Esix provides a mock database adapter that makes testing fast and easy without requiring a real MongoDB instance. Tests run in-memory with minimal setup.
+
+## Setup
+
+Esix uses the `DB_ADAPTER` environment variable to determine which database adapter to use.
+
+### Install Dependencies
+
+The mock adapter requires the `mongo-mock` package:
+
+```bash
+npm install --save-dev mongo-mock
+# or
+yarn add --dev mongo-mock
+```
+
+### Configure the Mock Adapter
+
+Set the `DB_ADAPTER` environment variable to `'mock'` in your tests:
+
+```typescript
+import { describe, it, expect, beforeEach } from 'vitest'
+import { BaseModel } from 'esix'
+
+class User extends BaseModel {
+  public username = ''
+  public email = ''
+}
+
+describe('User Model', () => {
+  beforeEach(() => {
+    process.env.DB_ADAPTER = 'mock'
+    process.env.DB_DATABASE = 'test'
+  })
+
+  it('creates a new user', async () => {
+    const user = await User.create({
+      username: 'john',
+      email: 'john@example.com'
+    })
+
+    expect(user.username).toBe('john')
+    expect(user.id).toBeDefined()
+  })
+})
+```
+
+## Environment Variables
+
+When using the mock adapter, configure these environment variables:
+
+| Variable | Description | Example |
+|----------|-------------|----------|
+| `DB_ADAPTER` | Set to `'mock'` for testing | `'mock'` |
+| `DB_DATABASE` | Database name (can be any string) | `'test'` |
+
+<Info>
+  For isolation between tests, use a unique database name for each test file or suite.
+</Info>
+
+## Testing Patterns
+
+### Basic CRUD Operations
+
+```typescript
+import { describe, it, expect, beforeEach } from 'vitest'
+import { BaseModel } from 'esix'
+
+class Post extends BaseModel {
+  public title = ''
+  public content = ''
+  public status = 'draft'
+}
+
+describe('Post CRUD', () => {
+  beforeEach(() => {
+    process.env.DB_ADAPTER = 'mock'
+    process.env.DB_DATABASE = 'test'
+  })
+
+  it('creates a post', async () => {
+    const post = await Post.create({
+      title: 'My First Post',
+      content: 'Hello world!'
+    })
+
+    expect(post.id).toBeDefined()
+    expect(post.title).toBe('My First Post')
+  })
+
+  it('finds a post by id', async () => {
+    const created = await Post.create({ title: 'Test Post' })
+    const found = await Post.find(created.id)
+
+    expect(found).not.toBeNull()
+    expect(found?.title).toBe('Test Post')
+  })
+
+  it('updates a post', async () => {
+    const post = await Post.create({ title: 'Draft Post' })
+    
+    post.status = 'published'
+    await post.save()
+
+    const updated = await Post.find(post.id)
+    expect(updated?.status).toBe('published')
+  })
+
+  it('deletes a post', async () => {
+    const post = await Post.create({ title: 'To Delete' })
+    await post.delete()
+
+    const found = await Post.find(post.id)
+    expect(found).toBeNull()
+  })
+})
+```
+
+### Testing Queries
+
+```typescript
+import { describe, it, expect, beforeEach } from 'vitest'
+import { BaseModel } from 'esix'
+
+class Product extends BaseModel {
+  public name = ''
+  public price = 0
+  public inStock = true
+}
+
+describe('Product Queries', () => {
+  beforeEach(async () => {
+    process.env.DB_ADAPTER = 'mock'
+    process.env.DB_DATABASE = 'test'
+
+    // Seed test data
+    await Product.create({ name: 'Laptop', price: 999, inStock: true })
+    await Product.create({ name: 'Mouse', price: 25, inStock: true })
+    await Product.create({ name: 'Keyboard', price: 75, inStock: false })
+  })
+
+  it('filters by price', async () => {
+    const affordable = await Product.where('price', '<=', 50).get()
+    
+    expect(affordable).toHaveLength(1)
+    expect(affordable[0].name).toBe('Mouse')
+  })
+
+  it('filters by stock status', async () => {
+    const inStock = await Product.where('inStock', true).get()
+    
+    expect(inStock).toHaveLength(2)
+  })
+
+  it('counts products', async () => {
+    const count = await Product.count()
+    
+    expect(count).toBe(3)
+  })
+})
+```
+
+### Testing Relationships
+
+```typescript
+import { describe, it, expect, beforeEach } from 'vitest'
+import { BaseModel } from 'esix'
+
+class Author extends BaseModel {
+  public name = ''
+}
+
+class Book extends BaseModel {
+  public title = ''
+  public authorId = ''
+}
+
+describe('Author-Book Relationships', () => {
+  beforeEach(() => {
+    process.env.DB_ADAPTER = 'mock'
+    process.env.DB_DATABASE = 'test'
+  })
+
+  it('retrieves books for an author', async () => {
+    const author = await Author.create({ name: 'Jane Austen' })
+    
+    await Book.create({ title: 'Pride and Prejudice', authorId: author.id })
+    await Book.create({ title: 'Emma', authorId: author.id })
+
+    const books = await author.hasMany(Book).get()
+    
+    expect(books).toHaveLength(2)
+    expect(books.map(b => b.title)).toContain('Pride and Prejudice')
+  })
+})
+```
+
+### Testing Aggregations
+
+```typescript
+import { describe, it, expect, beforeEach } from 'vitest'
+import { BaseModel } from 'esix'
+
+class Order extends BaseModel {
+  public amount = 0
+  public status = 'pending'
+}
+
+describe('Order Aggregations', () => {
+  beforeEach(async () => {
+    process.env.DB_ADAPTER = 'mock'
+    process.env.DB_DATABASE = 'test'
+
+    await Order.create({ amount: 100, status: 'completed' })
+    await Order.create({ amount: 250, status: 'completed' })
+    await Order.create({ amount: 75, status: 'pending' })
+  })
+
+  it('calculates total revenue', async () => {
+    const total = await Order
+      .where('status', 'completed')
+      .sum('amount')
+    
+    expect(total).toBe(350)
+  })
+
+  it('calculates average order value', async () => {
+    const avg = await Order.average('amount')
+    
+    expect(avg).toBeCloseTo(141.67, 2)
+  })
+})
+```
+
+## Test Isolation
+
+For better test isolation, use a unique database name for each test:
+
+```typescript
+import { v4 as uuid } from 'uuid'
+import { describe, it, beforeEach, afterAll } from 'vitest'
+import { connectionHandler } from 'esix'
+
+describe('Isolated Tests', () => {
+  beforeEach(() => {
+    process.env.DB_ADAPTER = 'mock'
+    process.env.DB_DATABASE = `test-${uuid()}` // Unique DB per test
+  })
+
+  afterAll(() => {
+    connectionHandler.closeConnections()
+  })
+
+  // Your tests here
+})
+```
+
+## Testing Security
+
+Test that your application properly prevents NoSQL injection:
+
+```typescript
+import { describe, it, expect, beforeEach } from 'vitest'
+import { BaseModel } from 'esix'
+
+class User extends BaseModel {
+  public username = ''
+  public password = ''
+}
+
+describe('NoSQL Injection Prevention', () => {
+  beforeEach(async () => {
+    process.env.DB_ADAPTER = 'mock'
+    process.env.DB_DATABASE = 'test'
+
+    await User.create({
+      username: 'john',
+      password: 'secret123'
+    })
+  })
+
+  it('prevents NoSQL injection via object injection', async () => {
+    const maliciousInput = { $ne: null }
+    
+    const user = await User
+      .where('username', 'john')
+      .where('password', maliciousInput)
+      .first()
+    
+    // Should not find user because the malicious operator is sanitized
+    expect(user).toBeNull()
+  })
+
+  it('safely handles valid queries', async () => {
+    const user = await User
+      .where('username', 'john')
+      .where('password', 'secret123')
+      .first()
+    
+    expect(user).not.toBeNull()
+    expect(user?.username).toBe('john')
+  })
+})
+```
+
+## Advanced: Custom Test Utilities
+
+Create helper functions to reduce boilerplate:
+
+```typescript
+import { v4 as uuid } from 'uuid'
+import { connectionHandler } from 'esix'
+
+export function setupTestDb() {
+  const dbName = `test-${uuid()}`
+  
+  process.env.DB_ADAPTER = 'mock'
+  process.env.DB_DATABASE = dbName
+  
+  return {
+    dbName,
+    cleanup: () => connectionHandler.closeConnections()
+  }
+}
+
+// Usage in tests
+describe('My Tests', () => {
+  const db = setupTestDb()
+  
+  afterAll(() => db.cleanup())
+  
+  it('works', async () => {
+    // Your test
+  })
+})
+```
+
+## Testing Frameworks
+
+Esix works with any JavaScript testing framework:
+
+### Vitest (Recommended)
+
+```typescript
+import { describe, it, expect, beforeEach } from 'vitest'
+```
+
+### Jest
+
+```typescript
+import { describe, it, expect, beforeEach } from '@jest/globals'
+```
+
+### Mocha
+
+```typescript
+import { describe, it } from 'mocha'
+import { expect } from 'chai'
+```
+
+## Performance Tips
+
+<Tip>
+  The mock adapter is extremely fast since it runs in-memory. However, you can further improve test performance by:
+  
+  - Reusing database connections when possible
+  - Minimizing the amount of test data created
+  - Running tests in parallel
+  - Closing connections in `afterAll()` hooks
+</Tip>
+
+## Common Issues
+
+### "DB_ADAPTER not set"
+
+Make sure you're setting the environment variable before importing or using models:
+
+```typescript
+// ❌ Wrong order
+import { User } from './models'
+process.env.DB_ADAPTER = 'mock'
+
+// ✅ Correct order
+process.env.DB_ADAPTER = 'mock'
+import { User } from './models'
+```
+
+### Tests Interfering with Each Other
+
+Use unique database names per test or test suite:
+
+```typescript
+beforeEach(() => {
+  process.env.DB_DATABASE = `test-${Date.now()}-${Math.random()}`
+})
+```
+
+## Real-World Example
+
+Here's a complete example from the Esix codebase (injection.spec.ts):
+
+```typescript
+import { v1 as createUuid } from 'uuid'
+import { afterAll, beforeEach, describe, expect, it } from 'vitest'
+import { BaseModel } from './'
+import { connectionHandler } from './connection-handler'
+
+class User extends BaseModel {
+  public password = ''
+  public username = ''
+}
+
+describe('Injections', () => {
+  beforeEach(() => {
+    Object.assign(process.env, {
+      DB_ADAPTER: 'mock',
+      DB_DATABASE: `test-${createUuid()}`
+    })
+  })
+
+  afterAll(() => {
+    connectionHandler.closeConnections()
+  })
+
+  it('prevents NoSQL injections using an object', async () => {
+    await User.create({
+      password: 'secretstuff',
+      username: 'Tim'
+    })
+
+    const user = await User
+      .where('username', 'Tim')
+      .where('password', { $ne: 1 })
+      .first()
+
+    expect(user).toBeNull()
+  })
+})
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Security" icon="shield" href="/security">
+    Learn how Esix prevents NoSQL injection attacks
+  </Card>
+  <Card title="Query Builder" icon="magnifying-glass" href="/query-builder">
+    Master advanced querying techniques
+  </Card>
+</CardGroup>

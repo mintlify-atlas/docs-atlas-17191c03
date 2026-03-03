@@ -1,0 +1,694 @@
+---
+title: "BaseModel"
+description: "The foundational class that all Esix models extend from, providing CRUD operations, query methods, and aggregation functions"
+---
+
+# BaseModel
+
+The `BaseModel` class is the core of Esix ORM. All models in your application should extend this class to gain access to type-safe database operations, query building capabilities, and aggregation functions.
+
+## Overview
+
+`BaseModel` provides both static methods (for querying collections) and instance methods (for manipulating individual model instances). It follows a fluent interface pattern, allowing you to chain multiple query methods together.
+
+## Properties
+
+Every model that extends `BaseModel` has these properties:
+
+<ParamField path="id" type="string" default="''">
+  Unique identifier for the model instance. Automatically generated if not provided.
+</ParamField>
+
+<ParamField path="createdAt" type="number" default="0">
+  Unix timestamp (milliseconds) when the model was created.
+</ParamField>
+
+<ParamField path="updatedAt" type="number | null" default="null">
+  Unix timestamp (milliseconds) when the model was last updated. `null` if never updated.
+</ParamField>
+
+## Static Methods
+
+### Query Methods
+
+#### all()
+
+Returns all models from the collection.
+
+```typescript
+static async all<T extends BaseModel>(this: ObjectType<T>): Promise<T[]>
+```
+
+<ResponseField name="returns" type="Promise<T[]>">
+  Array of all model instances
+</ResponseField>
+
+**Example**
+```typescript
+const posts = await BlogPost.all();
+```
+
+---
+
+#### find()
+
+Returns the model with the given id.
+
+```typescript
+static async find<T extends BaseModel>(
+  this: ObjectType<T>,
+  id: string
+): Promise<T | null>
+```
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the model to find
+</ParamField>
+
+<ResponseField name="returns" type="Promise<T | null>">
+  The model instance if found, otherwise `null`
+</ResponseField>
+
+**Example**
+```typescript
+const post = await BlogPost.find('5f5a41cc3eb990709eafda43');
+```
+
+---
+
+#### findBy()
+
+Returns the first model where the specified key matches the given value.
+
+```typescript
+static async findBy<T extends BaseModel, K extends keyof T | '_id'>(
+  this: ObjectType<T>,
+  key: K,
+  value: K extends keyof T ? T[K] : any
+): Promise<T | null>
+```
+
+<ParamField path="key" type="K extends keyof T | '_id'" required>
+  The property name to search by (or '_id' for the database ID)
+</ParamField>
+
+<ParamField path="value" type="any" required>
+  The value to match against
+</ParamField>
+
+<ResponseField name="returns" type="Promise<T | null>">
+  The first matching model instance, or `null` if not found
+</ResponseField>
+
+**Example**
+```typescript
+const user = await User.findBy('email', 'john.smith@company.com');
+```
+
+---
+
+#### where()
+
+Returns a QueryBuilder where the specified key matches a value or satisfies a comparison.
+
+```typescript
+// Two-parameter syntax (equality)
+static where<T extends BaseModel, K extends keyof T>(
+  this: ObjectType<T>,
+  key: K,
+  value: any
+): QueryBuilder<T>
+
+// Three-parameter syntax (comparison operators)
+static where<T extends BaseModel, K extends keyof T>(
+  this: ObjectType<T>,
+  key: K,
+  operator: ComparisonOperator,
+  value: any
+): QueryBuilder<T>
+```
+
+<ParamField path="key" type="K extends keyof T" required>
+  The property name to filter by
+</ParamField>
+
+<ParamField path="operator" type="ComparisonOperator">
+  Comparison operator: `'='`, `'!='`, `'<>'`, `'>'`, `'>='`, `'<'`, `'<='`
+</ParamField>
+
+<ParamField path="value" type="any" required>
+  The value to compare against
+</ParamField>
+
+<ResponseField name="returns" type="QueryBuilder<T>">
+  A QueryBuilder instance for method chaining
+</ResponseField>
+
+**Examples**
+```typescript
+// Equality (two-parameter syntax)
+const posts = await BlogPost.where('status', 'published').get();
+
+// Comparison operators (three-parameter syntax)
+const adults = await User.where('age', '>=', 18).get();
+const youngUsers = await User.where('age', '<', 30).get();
+
+// Chaining multiple conditions
+const workingAge = await User
+  .where('age', '>=', 18)
+  .where('age', '<=', 65)
+  .get();
+```
+
+---
+
+#### whereIn()
+
+Returns models where the specified key's value is in the given array.
+
+```typescript
+static whereIn<T extends BaseModel, K extends keyof T>(
+  this: ObjectType<T>,
+  key: K,
+  values: any[]
+): QueryBuilder<T>
+```
+
+<ParamField path="key" type="K extends keyof T" required>
+  The property name to filter by
+</ParamField>
+
+<ParamField path="values" type="any[]" required>
+  Array of values to match against
+</ParamField>
+
+<ResponseField name="returns" type="QueryBuilder<T>">
+  A QueryBuilder instance for method chaining
+</ResponseField>
+
+**Example**
+```typescript
+const comments = await Comment.whereIn('postId', [1, 2, 3]).get();
+```
+
+---
+
+#### whereNotIn()
+
+Returns models where the specified key's value is not in the given array.
+
+```typescript
+static whereNotIn<T extends BaseModel, K extends keyof T>(
+  this: ObjectType<T>,
+  key: K,
+  values: any[]
+): QueryBuilder<T>
+```
+
+<ParamField path="key" type="K extends keyof T" required>
+  The property name to filter by
+</ParamField>
+
+<ParamField path="values" type="any[]" required>
+  Array of values to exclude
+</ParamField>
+
+<ResponseField name="returns" type="QueryBuilder<T>">
+  A QueryBuilder instance for method chaining
+</ResponseField>
+
+**Example**
+```typescript
+const users = await User.whereNotIn('id', [1, 2, 3]).get();
+```
+
+---
+
+#### orderBy()
+
+Specifies the order in which models are returned.
+
+```typescript
+static orderBy<T extends BaseModel, K extends keyof T>(
+  this: ObjectType<T>,
+  key: K,
+  order: 'asc' | 'desc' = 'asc'
+): QueryBuilder<T>
+```
+
+<ParamField path="key" type="K extends keyof T" required>
+  The property name to sort by
+</ParamField>
+
+<ParamField path="order" type="'asc' | 'desc'" default="'asc'">
+  Sort order: ascending or descending
+</ParamField>
+
+<ResponseField name="returns" type="QueryBuilder<T>">
+  A QueryBuilder instance for method chaining
+</ResponseField>
+
+**Example**
+```typescript
+const posts = await BlogPost.orderBy('publishedAt', 'desc').get();
+```
+
+---
+
+#### limit()
+
+Limits the number of models returned.
+
+```typescript
+static limit<T extends BaseModel>(
+  this: ObjectType<T>,
+  length: number
+): QueryBuilder<T>
+```
+
+<ParamField path="length" type="number" required>
+  Maximum number of models to return
+</ParamField>
+
+<ResponseField name="returns" type="QueryBuilder<T>">
+  A QueryBuilder instance for method chaining
+</ResponseField>
+
+**Example**
+```typescript
+const recentPosts = await BlogPost.orderBy('createdAt', 'desc').limit(5).get();
+```
+
+---
+
+#### skip()
+
+Skips the specified number of models. Useful for pagination.
+
+```typescript
+static skip<T extends BaseModel>(
+  this: ObjectType<T>,
+  length: number
+): QueryBuilder<T>
+```
+
+<ParamField path="length" type="number" required>
+  Number of models to skip
+</ParamField>
+
+<ResponseField name="returns" type="QueryBuilder<T>">
+  A QueryBuilder instance for method chaining
+</ResponseField>
+
+**Example**
+```typescript
+// Page 2 with 10 items per page
+const page2 = await BlogPost.skip(10).limit(10).get();
+```
+
+---
+
+### Data Manipulation Methods
+
+#### create()
+
+Creates a new model with the given attributes. The ID will be automatically generated if not provided.
+
+```typescript
+static async create<T extends BaseModel>(
+  this: ObjectType<T>,
+  attributes: Partial<T>
+): Promise<T>
+```
+
+<ParamField path="attributes" type="Partial<T>" required>
+  Object containing the model's attributes
+</ParamField>
+
+<ResponseField name="returns" type="Promise<T>">
+  The newly created model instance
+</ResponseField>
+
+**Example**
+```typescript
+const post = await BlogPost.create({ title: 'My First Blog Post!' });
+```
+
+---
+
+#### firstOrCreate()
+
+Finds a model matching the filter, or creates a new one with the given attributes if none exists.
+
+```typescript
+static async firstOrCreate<T extends BaseModel>(
+  this: ObjectType<T>,
+  filter: Partial<T>,
+  attributes?: Partial<T>
+): Promise<T>
+```
+
+<ParamField path="filter" type="Partial<T>" required>
+  Object to search for existing model
+</ParamField>
+
+<ParamField path="attributes" type="Partial<T>">
+  Attributes to use when creating new model (optional, defaults to filter)
+</ParamField>
+
+<ResponseField name="returns" type="Promise<T>">
+  The found or newly created model instance
+</ResponseField>
+
+**Examples**
+```typescript
+// Retrieve flight by name or create it if it doesn't exist
+const flight = await Flight.firstOrCreate({
+  name: 'London to Paris'
+});
+
+// Retrieve flight by name or create it with additional attributes
+const flight = await Flight.firstOrCreate(
+  { name: 'London to Paris' },
+  { delayed: 1, arrival_time: '11:30' }
+);
+```
+
+---
+
+### Aggregation Methods
+
+#### count()
+
+Returns the number of documents for this model.
+
+```typescript
+static async count<T extends BaseModel>(
+  this: ObjectType<T>
+): Promise<number>
+```
+
+<ResponseField name="returns" type="Promise<number>">
+  Total count of documents
+</ResponseField>
+
+**Example**
+```typescript
+const userCount = await User.count();
+```
+
+---
+
+#### sum()
+
+Returns the sum of all values for the given key.
+
+```typescript
+static async sum<T extends BaseModel, K extends keyof T>(
+  this: ObjectType<T>,
+  key: K
+): Promise<number>
+```
+
+<ParamField path="key" type="K extends keyof T" required>
+  The property name to sum
+</ParamField>
+
+<ResponseField name="returns" type="Promise<number>">
+  Sum of all values
+</ResponseField>
+
+**Example**
+```typescript
+const totalSales = await Order.sum('amount');
+```
+
+---
+
+#### average()
+
+Returns the average of all values for the given key.
+
+```typescript
+static async average<T extends BaseModel, K extends keyof T>(
+  this: ObjectType<T>,
+  key: K
+): Promise<number>
+```
+
+<ParamField path="key" type="K extends keyof T" required>
+  The property name to average
+</ParamField>
+
+<ResponseField name="returns" type="Promise<number>">
+  Average of all values
+</ResponseField>
+
+**Example**
+```typescript
+const avgAge = await User.average('age');
+```
+
+---
+
+#### min()
+
+Returns the smallest value for the given key.
+
+```typescript
+static async min<T extends BaseModel, K extends keyof T>(
+  this: ObjectType<T>,
+  key: K
+): Promise<number>
+```
+
+<ParamField path="key" type="K extends keyof T" required>
+  The property name to find minimum value
+</ParamField>
+
+<ResponseField name="returns" type="Promise<number>">
+  Minimum value
+</ResponseField>
+
+**Example**
+```typescript
+const minAge = await User.min('age');
+```
+
+---
+
+#### max()
+
+Returns the largest value for the given key.
+
+```typescript
+static async max<T extends BaseModel, K extends keyof T>(
+  this: ObjectType<T>,
+  key: K
+): Promise<number>
+```
+
+<ParamField path="key" type="K extends keyof T" required>
+  The property name to find maximum value
+</ParamField>
+
+<ResponseField name="returns" type="Promise<number>">
+  Maximum value
+</ResponseField>
+
+**Example**
+```typescript
+const maxScore = await Test.max('score');
+```
+
+---
+
+#### percentile()
+
+Returns the nth percentile of all values for the given key.
+
+```typescript
+static async percentile<T extends BaseModel, K extends keyof T>(
+  this: ObjectType<T>,
+  key: K,
+  n: number
+): Promise<number>
+```
+
+<ParamField path="key" type="K extends keyof T" required>
+  The property name to calculate percentile
+</ParamField>
+
+<ParamField path="n" type="number" required>
+  The percentile to calculate (0-100)
+</ParamField>
+
+<ResponseField name="returns" type="Promise<number>">
+  The nth percentile value
+</ResponseField>
+
+**Examples**
+```typescript
+const median = await ResponseTime.percentile('value', 50);
+const p95 = await ResponseTime.percentile('value', 95);
+```
+
+---
+
+#### pluck()
+
+Returns an array of values for the given key.
+
+```typescript
+static pluck<T extends BaseModel, K extends keyof T>(
+  this: ObjectType<T>,
+  key: K
+): Promise<T[K][]>
+```
+
+<ParamField path="key" type="K extends keyof T" required>
+  The property name to extract values from
+</ParamField>
+
+<ResponseField name="returns" type="Promise<T[K][]>">
+  Array of values for the specified key
+</ResponseField>
+
+**Example**
+```typescript
+const titles = await BlogPost.pluck('title');
+// => ['First Post', 'Second Post', 'Third Post']
+```
+
+---
+
+#### aggregate()
+
+Provides direct access to MongoDB's aggregation pipeline.
+
+```typescript
+static async aggregate<T extends BaseModel>(
+  this: ObjectType<T>,
+  stages: Record<string, unknown>[]
+)
+```
+
+<ParamField path="stages" type="Record<string, unknown>[]" required>
+  Array of MongoDB aggregation pipeline stages
+</ParamField>
+
+<ResponseField name="returns" type="Promise<any>">
+  The result of the aggregation
+</ResponseField>
+
+**Example**
+```typescript
+const results = await User.aggregate([
+  { $group: { _id: '$department', count: { $sum: 1 } } }
+]);
+```
+
+---
+
+## Instance Methods
+
+### save()
+
+Persists the current changes to the database. If the model doesn't have an ID, it creates a new document. Otherwise, it updates the existing document.
+
+```typescript
+async save(): Promise<void>
+```
+
+<ResponseField name="returns" type="Promise<void>">
+  Promise that resolves when the save is complete
+</ResponseField>
+
+**Example**
+```typescript
+const post = new Post();
+post.title = 'My Second Blog Post!';
+await post.save();
+```
+
+---
+
+### delete()
+
+Deletes the model from the database.
+
+```typescript
+async delete(): Promise<number>
+```
+
+<ResponseField name="returns" type="Promise<number>">
+  Number of documents deleted (should be 1 for instance methods)
+</ResponseField>
+
+**Example**
+```typescript
+await post.delete();
+```
+
+---
+
+### hasMany()
+
+Defines a one-to-many relationship between models.
+
+```typescript
+hasMany<T extends BaseModel>(
+  ctor: ObjectType<T>,
+  foreignKey?: string,
+  localKey?: string
+): QueryBuilder<T>
+```
+
+<ParamField path="ctor" type="ObjectType<T>" required>
+  The related model class constructor
+</ParamField>
+
+<ParamField path="foreignKey" type="string">
+  The foreign key field name (defaults to camelCase of parent model name + "Id")
+</ParamField>
+
+<ParamField path="localKey" type="string" default="'id'">
+  The local key field name
+</ParamField>
+
+<ResponseField name="returns" type="QueryBuilder<T>">
+  A QueryBuilder for the related models
+</ResponseField>
+
+**Example**
+```typescript
+const user = await User.find('123');
+const posts = await user.hasMany(Post).get();
+```
+
+---
+
+## Type Safety
+
+BaseModel leverages TypeScript's advanced type system to provide complete type safety:
+
+- **Generic constraints**: `<T extends BaseModel>` ensures type consistency
+- **Keyof operator**: `K extends keyof T` restricts field names to actual model properties
+- **Conditional types**: Return types adapt based on input parameters
+- **Constructor typing**: `ObjectType<T>` enables proper static method typing
+
+**Example with custom model**
+```typescript
+class User extends BaseModel {
+  email: string = '';
+  age: number = 0;
+  status: 'active' | 'inactive' = 'active';
+}
+
+// TypeScript knows these are valid
+const user = await User.findBy('email', 'test@example.com');
+const adults = await User.where('age', '>=', 18).get();
+
+// TypeScript will error on invalid property names
+const invalid = await User.findBy('invalidField', 'value'); // Error!
+```

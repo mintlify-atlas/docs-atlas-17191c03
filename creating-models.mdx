@@ -1,0 +1,121 @@
+---
+title: 'Creating Models'
+description: 'Learn how to create new models in Esix using the create() method and instantiation'
+---
+
+## Overview
+
+Esix provides two primary ways to create new models: using the static `create()` method for immediate persistence, or instantiating a model and calling `save()` later.
+
+## Using create()
+
+The `create()` method is the recommended way to create and persist a model in a single operation. It automatically generates an ID if none is provided and sets the `createdAt` timestamp.
+
+### Method Signature
+
+```typescript packages/esix/src/base-model.ts
+static async create<T extends BaseModel>(
+  this: ObjectType<T>,
+  attributes: Partial<T>
+): Promise<T>
+```
+
+### Basic Usage
+
+<CodeGroup>
+
+```typescript Simple Example
+const post = await BlogPost.create({ 
+  title: 'My First Blog Post!' 
+});
+```
+
+```typescript With Multiple Attributes
+const book = await Book.create({
+  title: 'Wuthering Heights',
+  isbn: '9780486411095',
+  pages: 376,
+  authorId: 'author-1'
+});
+```
+
+```typescript With Custom ID
+const book = await Book.create({
+  id: '5f0aefba348289a81889a955',
+  title: 'Pride and Prejudice',
+  isbn: '9780486284736',
+  pages: 279
+});
+```
+
+</CodeGroup>
+
+## Default Values
+
+Esix automatically includes default values defined in your model class when creating new instances.
+
+```typescript Model Definition
+class Book extends BaseModel {
+  public isAvailable = true;  // Default value
+  public isbn = '';
+  public title = '';
+  public pages = 0;
+}
+```
+
+When you create a book without specifying `isAvailable`, it will default to `true`:
+
+```typescript
+const book = await Book.create({
+  title: 'Jane Eyre',
+  isbn: '9780141439518',
+  pages: 544
+});
+
+// book.isAvailable is true by default
+```
+
+## Timestamps
+
+Every model created with `create()` automatically receives:
+
+- `createdAt` - Set to the current timestamp
+- `updatedAt` - Initially set to `null`
+- `id` - Auto-generated MongoDB ObjectId (unless provided)
+
+```typescript
+const post = await BlogPost.create({ title: 'New Post' });
+
+console.log(post.id);        // '5f3568f2a0cdd1c9ba411c43'
+console.log(post.createdAt); // 1672574400000
+console.log(post.updatedAt); // null
+```
+
+<Note>
+The `create()` method returns the fully populated model instance fetched from the database, ensuring all default values and auto-generated fields are included.
+</Note>
+
+## Error Handling
+
+The `create()` method throws an error if the model fails to persist:
+
+```typescript
+try {
+  const post = await BlogPost.create({ 
+    title: 'My Post' 
+  });
+} catch (error) {
+  console.error('Failed to create model:', error);
+}
+```
+
+## Related Methods
+
+<CardGroup cols={2}>
+  <Card title="Updating Models" icon="pen-to-square" href="/updating-models">
+    Learn how to update existing models
+  </Card>
+  <Card title="First or Create" icon="magnifying-glass-plus" href="/first-or-create">
+    Find or create models in a single operation
+  </Card>
+</CardGroup>

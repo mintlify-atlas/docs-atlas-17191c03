@@ -1,0 +1,247 @@
+---
+title: orderBy()
+description: Sort query results by a field in ascending or descending order
+---
+
+The `orderBy()` method specifies the order in which models are returned from the database.
+
+## Signature
+
+```typescript
+orderBy<K extends keyof T>(
+  key: K,
+  order: 'asc' | 'desc' = 'asc'
+): QueryBuilder<T>
+```
+
+<ParamField path="key" type="keyof T" required>
+  The property name to sort by (must be a valid model field)
+</ParamField>
+
+<ParamField path="order" type="'asc' | 'desc'" default="'asc'">
+  Sort direction:
+  - `'asc'` - Ascending order (A-Z, 0-9, oldest to newest)
+  - `'desc'` - Descending order (Z-A, 9-0, newest to oldest)
+</ParamField>
+
+## Returns
+
+<ResponseField name="QueryBuilder<T>" type="QueryBuilder<T>">
+  Returns the query builder instance for method chaining
+</ResponseField>
+
+## Examples
+
+### Ascending Order
+
+Sort results in ascending order (default behavior):
+
+```typescript
+// Sort by name (A-Z)
+const users = await User.orderBy('name').get()
+
+// Sort by age (youngest first)
+const youngToOld = await User.orderBy('age', 'asc').get()
+
+// Sort by price (cheapest first)
+const products = await Product.orderBy('price').get()
+```
+
+### Descending Order
+
+Sort results in descending order:
+
+```typescript
+// Sort by publish date (newest first)
+const recentPosts = await BlogPost
+  .orderBy('publishedAt', 'desc')
+  .get()
+
+// Sort by score (highest first)
+const topScores = await Test
+  .orderBy('score', 'desc')
+  .get()
+
+// Sort by price (most expensive first)
+const luxuryItems = await Product
+  .orderBy('price', 'desc')
+  .get()
+```
+
+### Multiple Sort Orders
+
+Chain multiple `orderBy()` calls for multi-level sorting:
+
+```typescript
+// Sort by department, then by name within each department
+const employees = await User
+  .orderBy('department')
+  .orderBy('name')
+  .get()
+
+// Sort by status (ascending), then by priority (descending)
+const tasks = await Task
+  .orderBy('status', 'asc')
+  .orderBy('priority', 'desc')
+  .get()
+
+// Sort by category, then by price within category
+const catalog = await Product
+  .orderBy('category')
+  .orderBy('price', 'desc')
+  .get()
+```
+
+### Combining with Filters
+
+```typescript
+// Active users sorted by registration date
+const newActiveUsers = await User
+  .where('status', 'active')
+  .orderBy('createdAt', 'desc')
+  .get()
+
+// Published posts sorted by views
+const popularPosts = await BlogPost
+  .where('status', 'published')
+  .orderBy('views', 'desc')
+  .limit(10)
+  .get()
+
+// High-value orders from last month
+const bigOrders = await Order
+  .where('amount', '>', 1000)
+  .where('createdAt', '>', Date.now() - 2592000000)
+  .orderBy('amount', 'desc')
+  .get()
+```
+
+### Pagination with Sorting
+
+```typescript
+// Page 1: First 20 users sorted by name
+const page1 = await User
+  .orderBy('name')
+  .limit(20)
+  .get()
+
+// Page 2: Next 20 users
+const page2 = await User
+  .orderBy('name')
+  .skip(20)
+  .limit(20)
+  .get()
+
+// Recent posts with pagination
+const recentPage = await BlogPost
+  .where('status', 'published')
+  .orderBy('publishedAt', 'desc')
+  .skip(page * pageSize)
+  .limit(pageSize)
+  .get()
+```
+
+### Sorting Dates and Timestamps
+
+```typescript
+// Newest to oldest
+const recent = await Article
+  .orderBy('createdAt', 'desc')
+  .get()
+
+// Oldest to newest
+const historical = await Article
+  .orderBy('createdAt', 'asc')
+  .get()
+
+// Most recently updated
+const recentlyUpdated = await Document
+  .orderBy('updatedAt', 'desc')
+  .get()
+```
+
+### Sorting Strings
+
+```typescript
+// Alphabetical by title
+const booksByTitle = await Book
+  .orderBy('title')
+  .get()
+
+// Reverse alphabetical by author
+const booksByAuthor = await Book
+  .orderBy('author', 'desc')
+  .get()
+
+// Case-sensitive sorting
+const sorted = await Item
+  .orderBy('name')
+  .get()
+```
+
+### Sorting Numbers
+
+```typescript
+// Lowest to highest score
+const rankings = await Player
+  .orderBy('score', 'asc')
+  .get()
+
+// Highest to lowest price
+const expensiveFirst = await Product
+  .orderBy('price', 'desc')
+  .get()
+
+// Inventory count
+const lowStock = await Product
+  .orderBy('quantity')
+  .where('quantity', '<', 10)
+  .get()
+```
+
+## Type Safety
+
+The `orderBy()` method is fully type-safe:
+
+```typescript
+class User extends BaseModel {
+  name!: string
+  age!: number
+  email!: string
+}
+
+// TypeScript ensures 'age' is a valid User property
+const users = await User.orderBy('age').get()
+
+// TypeScript error: 'invalidField' is not a property of User
+// const invalid = await User.orderBy('invalidField').get()
+
+// TypeScript ensures order is 'asc' or 'desc'
+const sorted = await User.orderBy('name', 'desc').get()
+
+// TypeScript error: 'invalid' is not a valid sort order
+// const wrong = await User.orderBy('name', 'invalid').get()
+```
+
+## Performance Considerations
+
+- Consider adding database indexes on fields you frequently sort by
+- MongoDB sorts in memory if no index exists, which can impact performance for large datasets
+- Combining `orderBy()` with `limit()` is efficient even without indexes
+
+```typescript
+// Efficient: Limited result set
+const top10 = await Product
+  .orderBy('sales', 'desc')
+  .limit(10)
+  .get()
+
+// May be slow without index on large collections
+const allSorted = await Product
+  .orderBy('sales', 'desc')
+  .get()
+```
+
+## Source
+
+Implementation: `packages/esix/src/base-model.ts:241-257`, `packages/esix/src/query-builder.ts:283-298`

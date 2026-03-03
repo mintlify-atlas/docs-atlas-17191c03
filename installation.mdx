@@ -1,0 +1,223 @@
+---
+title: Installation
+description: Install Esix and configure your MongoDB connection
+---
+
+## Install Esix
+
+Esix requires Node.js 20 or higher and works with MongoDB 4.0+.
+
+<CodeGroup>
+```bash npm
+npm install esix mongodb
+```
+
+```bash yarn
+yarn add esix mongodb
+```
+
+```bash pnpm
+pnpm add esix mongodb
+```
+</CodeGroup>
+
+<Note>
+Esix has `mongodb` as a peer dependency. You must install both `esix` and `mongodb` packages.
+</Note>
+
+## Configure MongoDB connection
+
+Esix automatically connects to MongoDB when needed. Configure your connection using environment variables:
+
+### Set connection string
+
+The simplest way to configure Esix is with the `DB_URL` environment variable:
+
+```bash
+export DB_URL=mongodb://localhost:27017/myapp
+```
+
+For production deployments with MongoDB Atlas or other cloud providers:
+
+```bash
+export DB_URL=mongodb+srv://username:password@cluster.mongodb.net/myapp
+```
+
+### Environment variables reference
+
+Esix supports the following environment variables:
+
+<ParamField path="DB_URL" type="string" required>
+  MongoDB connection string. This is the primary configuration option and the only required variable.
+  
+  ```bash
+  DB_URL=mongodb://localhost:27017/myapp
+  ```
+</ParamField>
+
+<ParamField path="DB_DATABASE" type="string">
+  Database name. Optional—Esix extracts the database name from `DB_URL` if not provided.
+  
+  ```bash
+  DB_DATABASE=myapp
+  ```
+</ParamField>
+
+<ParamField path="DB_ADAPTER" type="string">
+  Database adapter. Set to `'mock'` for testing with in-memory MongoDB. Defaults to the standard MongoDB driver.
+  
+  ```bash
+  DB_ADAPTER=mock
+  ```
+</ParamField>
+
+## Verify installation
+
+Create a simple test file to verify your installation:
+
+```typescript test.ts
+import { BaseModel } from 'esix'
+
+class User extends BaseModel {
+  public name = ''
+  public email = ''
+}
+
+async function test() {
+  // Create a user
+  const user = await User.create({
+    name: 'Test User',
+    email: 'test@example.com'
+  })
+
+  console.log('Created user:', user.id)
+
+  // Find the user
+  const found = await User.find(user.id)
+  console.log('Found user:', found?.name)
+
+  // Count users
+  const count = await User.count()
+  console.log('Total users:', count)
+}
+
+test().catch(console.error)
+```
+
+Run the test:
+
+<CodeGroup>
+```bash Node.js with tsx
+npx tsx test.ts
+```
+
+```bash Node.js with ts-node
+npx ts-node test.ts
+```
+
+```bash Bun
+bun test.ts
+```
+</CodeGroup>
+
+If everything is configured correctly, you should see output showing the created user's ID, name, and total count.
+
+## TypeScript configuration
+
+Esix requires the following TypeScript compiler options in your `tsconfig.json`:
+
+```json tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["ES2020"],
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "strict": true
+  }
+}
+```
+
+<Warning>
+The `experimentalDecorators` and `emitDecoratorMetadata` options are required for Esix's internal metadata handling, even though you won't use decorators in your model definitions.
+</Warning>
+
+## Testing setup
+
+For testing, you can use an in-memory MongoDB mock or a test database:
+
+### Option 1: Mock adapter (recommended for unit tests)
+
+Install the mock adapter:
+
+<CodeGroup>
+```bash npm
+npm install --save-dev mongo-mock
+```
+
+```bash yarn
+yarn add --dev mongo-mock
+```
+
+```bash pnpm
+pnpm add --save-dev mongo-mock
+```
+</CodeGroup>
+
+Configure your test environment:
+
+```bash
+DB_ADAPTER=mock
+DB_URL=mongodb://localhost:27017/test
+```
+
+### Option 2: Dedicated test database
+
+Use a separate database for testing:
+
+```bash
+DB_URL=mongodb://localhost:27017/myapp_test
+```
+
+<Tip>
+For integration tests, consider using a tool like [mongodb-memory-server](https://github.com/nodkz/mongodb-memory-server) to spin up temporary MongoDB instances.
+</Tip>
+
+## Docker setup
+
+If you need a local MongoDB instance for development, use Docker:
+
+```bash
+docker run -d \
+  --name mongodb \
+  -p 27017:27017 \
+  -e MONGO_INITDB_DATABASE=myapp \
+  mongo:latest
+```
+
+Then set your connection string:
+
+```bash
+export DB_URL=mongodb://localhost:27017/myapp
+```
+
+## Connection management
+
+Esix automatically manages your MongoDB connection:
+
+- **Lazy connection**: The connection is established when you first query the database, not when your application starts
+- **Connection pooling**: MongoDB's native connection pooling is used automatically
+- **No manual cleanup**: You don't need to explicitly close connections
+
+<Note>
+The automatic connection management means you can start writing queries immediately without any initialization code.
+</Note>
+
+## Next steps
+
+<Card title="Quickstart" icon="rocket" href="/quickstart">
+  Build your first Esix application with a complete working example
+</Card>

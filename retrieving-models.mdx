@@ -1,0 +1,137 @@
+---
+title: Retrieving Models
+description: Learn how to retrieve models from the database using Esix query methods
+---
+
+Esix provides several intuitive methods for retrieving models from your MongoDB database. These methods are chainable and type-safe, making it easy to fetch the data you need.
+
+## Retrieving All Models
+
+Use the `all()` method to retrieve all records from a collection:
+
+```typescript
+const posts = await BlogPost.all();
+```
+
+This returns an array of all `BlogPost` instances in the database.
+
+## Finding by ID
+
+The `find()` method retrieves a single model by its ID:
+
+```typescript
+const post = await BlogPost.find('5f5a41cc3eb990709eafda43');
+```
+
+<Info>
+  The `find()` method returns `null` if no model with the given ID exists.
+</Info>
+
+### Method Signature
+
+```typescript
+static async find<T extends BaseModel>(
+  this: ObjectType<T>,
+  id: string
+): Promise<T | null>
+```
+
+Source: `packages/esix/src/base-model.ts:129`
+
+## Finding by Attribute
+
+The `findBy()` method retrieves the first model where a specific attribute matches a value:
+
+```typescript
+const user = await User.findBy('email', 'john.smith@company.com');
+```
+
+### Method Signature
+
+```typescript
+static async findBy<T extends BaseModel, K extends keyof T | '_id'>(
+  this: ObjectType<T>,
+  key: K,
+  value: K extends keyof T ? T[K] : any
+): Promise<T | null>
+```
+
+Source: `packages/esix/src/base-model.ts:147`
+
+<Tip>
+  Use `findBy()` for unique attributes like email addresses or usernames.
+</Tip>
+
+## Getting the First Result
+
+When you need the first result from a query, use the `first()` method:
+
+```typescript
+const firstPost = await BlogPost.where('status', 'published').first();
+```
+
+This is particularly useful when combined with filtering and ordering:
+
+```typescript
+const latestPost = await BlogPost
+  .where('status', 'published')
+  .orderBy('createdAt', 'desc')
+  .first();
+```
+
+<Note>
+  The `first()` method returns `null` if no matching models are found.
+</Note>
+
+## Executing Queries
+
+Most query builder methods return a `QueryBuilder` instance, allowing you to chain multiple conditions. Call `get()` to execute the query and retrieve the results:
+
+```typescript
+const posts = await BlogPost
+  .where('authorId', 'author-123')
+  .orderBy('createdAt', 'desc')
+  .get();
+```
+
+## Example: Complete Retrieval Workflow
+
+Here's a practical example showing different ways to retrieve models:
+
+```typescript
+class User extends BaseModel {
+  public name = '';
+  public email = '';
+  public status = 'active';
+}
+
+// Get all users
+const allUsers = await User.all();
+
+// Find a specific user by ID
+const user = await User.find('5f5a41cc3eb990709eafda43');
+
+if (user) {
+  console.log(`Found user: ${user.name}`);
+}
+
+// Find user by email
+const userByEmail = await User.findBy('email', 'admin@example.com');
+
+// Get first active user
+const firstActiveUser = await User.where('status', 'active').first();
+
+// Get all active users
+const activeUsers = await User.where('status', 'active').get();
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Filtering" icon="filter" href="/filtering">
+    Learn how to filter models using where clauses and comparison operators
+  </Card>
+  <Card title="Pagination" icon="list" href="/pagination">
+    Implement pagination with limit, skip, and orderBy
+  </Card>
+</CardGroup>

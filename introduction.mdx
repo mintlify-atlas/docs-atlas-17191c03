@@ -1,0 +1,152 @@
+---
+title: Introduction
+description: A type-safe MongoDB ORM for TypeScript with zero configuration
+---
+
+## Welcome to Esix
+
+Working with MongoDB in TypeScript usually means choosing between simplicity and type safety. Native drivers require verbose, untyped queries, while most ORMs demand extensive configuration and boilerplate.
+
+Esix brings the elegance of ActiveRecord and Eloquent to MongoDB with full TypeScript support. Define your models as simple TypeScript classes, and Esix automatically handles database operations and type inference through sensible conventions.
+
+**No configuration files, no setup overhead**—just MongoDB development that feels as natural as working with any TypeScript object while maintaining the flexibility that makes MongoDB powerful.
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="Zero configuration" icon="bolt">
+    No decorators, no config files, just TypeScript classes. Start building immediately without setup overhead.
+  </Card>
+  
+  <Card title="Full type safety" icon="shield-check">
+    Leverages TypeScript's type system for compile-time safety. Your IDE knows exactly what fields exist on your models.
+  </Card>
+  
+  <Card title="Eloquent-style API" icon="code">
+    Familiar, intuitive syntax inspired by Laravel and ActiveRecord. If you've used modern ORMs, you'll feel right at home.
+  </Card>
+  
+  <Card title="Rich query builder" icon="filter">
+    Fluent API with comparison operators, sorting, pagination, and more. Build complex queries with ease.
+  </Card>
+  
+  <Card title="Automatic connection" icon="plug">
+    Connects to MongoDB automatically when needed. No connection management code required.
+  </Card>
+  
+  <Card title="Aggregation support" icon="chart-line">
+    Built-in methods for common aggregations like count, sum, average, percentiles, and custom pipelines.
+  </Card>
+  
+  <Card title="Type-safe relationships" icon="link">
+    Simple relationship definitions with full type inference. Query related models without losing type safety.
+  </Card>
+  
+  <Card title="NoSQL injection protection" icon="lock">
+    Automatic input sanitization prevents injection attacks. Your data is safe by default.
+  </Card>
+</CardGroup>
+
+## Simple example
+
+Here's everything you need to get started with Esix:
+
+<Steps>
+  <Step title="Define a model">
+    Create a TypeScript class that extends `BaseModel`:
+    
+    ```typescript
+    import { BaseModel } from 'esix'
+
+    class User extends BaseModel {
+      public name = ''
+      public email = ''
+      public age = 0
+      public isActive = true
+    }
+    ```
+  </Step>
+  
+  <Step title="Create and query">
+    Use your model with zero configuration:
+    
+    ```typescript
+    // Create a user
+    const user = await User.create({
+      name: 'John Smith',
+      email: 'john@example.com',
+      age: 30
+    })
+
+    // Query users
+    const activeUsers = await User
+      .where('isActive', true)
+      .where('age', '>=', 18)
+      .get()
+
+    // Update and save
+    user.age = 31
+    await user.save()
+    ```
+  </Step>
+  
+  <Step title="Use advanced features">
+    Leverage aggregations and relationships:
+    
+    ```typescript
+    // Aggregations
+    const avgAge = await User.average('age')
+    const totalUsers = await User.count()
+
+    // Relationships
+    class Author extends BaseModel {
+      public name = ''
+      
+      posts() {
+        return this.hasMany(Post, 'authorId')
+      }
+    }
+
+    const author = await Author.find('author123')
+    const posts = await author.posts().get()
+    ```
+  </Step>
+</Steps>
+
+## Why Esix?
+
+### No decorators or configuration
+
+Unlike other TypeScript ORMs, Esix doesn't require decorators on every property or extensive configuration files. Just define your class properties with default values, and Esix handles the rest through intelligent conventions.
+
+### Type safety without sacrifices
+
+Esix leverages TypeScript's advanced type system to provide full type inference. Your IDE will autocomplete field names, catch typos at compile time, and ensure you're querying the right fields with the right types.
+
+### Familiar if you know Eloquent or ActiveRecord
+
+If you've worked with Laravel's Eloquent or Ruby on Rails' ActiveRecord, Esix will feel immediately familiar. The same intuitive patterns, adapted for TypeScript and MongoDB.
+
+### Production-ready
+
+With automatic NoSQL injection protection, connection management, and battle-tested query building, Esix is ready for production use from day one.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Install Esix and set up your MongoDB connection
+  </Card>
+  
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Build your first Esix application in minutes
+  </Card>
+  
+  <Card title="API Reference" icon="book" href="/api/base-model">
+    Explore the complete API documentation
+  </Card>
+  
+  <Card title="GitHub" icon="github" href="https://github.com/Artmann/esix">
+    View the source code and contribute
+  </Card>
+</CardGroup>

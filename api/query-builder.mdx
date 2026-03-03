@@ -1,0 +1,728 @@
+---
+title: "QueryBuilder"
+description: "A fluent interface for building and executing type-safe MongoDB queries"
+---
+
+# QueryBuilder
+
+The `QueryBuilder` class provides a fluent, chainable interface for constructing complex MongoDB queries in a type-safe manner. It's the engine behind most query operations in Esix and is typically accessed through `BaseModel` static methods.
+
+## Overview
+
+`QueryBuilder` follows the builder pattern, allowing you to chain multiple query constraints together before executing the final query. Each method returns `this` (or a Promise for terminal methods), enabling method chaining.
+
+```typescript
+const results = await User
+  .where('age', '>=', 18)
+  .where('status', 'active')
+  .orderBy('createdAt', 'desc')
+  .limit(10)
+  .get();
+```
+
+## Constructor
+
+```typescript
+constructor(ctor: ObjectType<T>)
+```
+
+<ParamField path="ctor" type="ObjectType<T>" required>
+  The model class constructor that this QueryBuilder operates on
+</ParamField>
+
+**Note**: You typically don't instantiate QueryBuilder directly. Instead, use static methods on your models which create QueryBuilder instances internally.
+
+## Query Constraint Methods
+
+These methods add constraints to the query and return the QueryBuilder instance for chaining.
+
+### where()
+
+Adds a constraint to the current query. Supports multiple signatures for different use cases.
+
+```typescript
+// Object syntax
+where(query: Query): QueryBuilder<T>
+
+// Two-parameter syntax (equality)
+where<K extends keyof T>(key: K, value: any): QueryBuilder<T>
+
+// Three-parameter syntax (comparison operators)
+where<K extends keyof T>(
+  key: K,
+  operator: ComparisonOperator,
+  value: any
+): QueryBuilder<T>
+```
+
+<ParamField path="query" type="Query">
+  Object containing field-value pairs for filtering
+</ParamField>
+
+<ParamField path="key" type="K extends keyof T">
+  Property name to filter by (must be a valid model field)
+</ParamField>
+
+<ParamField path="operator" type="ComparisonOperator">
+  Comparison operator: `'='`, `'!='`, `'<>'`, `'>'`, `'>='`, `'<'`, `'<='`
+</ParamField>
+
+<ParamField path="value" type="any">
+  The value to filter by
+</ParamField>
+
+<ResponseField name="returns" type="QueryBuilder<T>">
+  The QueryBuilder instance for chaining
+</ResponseField>
+
+**Operator Mapping**:
+- `'='` → Equality match
+- `'!='` or `'<>'` → MongoDB `$ne`
+- `'>'` → MongoDB `$gt`
+- `'>='` → MongoDB `$gte`
+- `'<'` → MongoDB `$lt`
+- `'<='` → MongoDB `$lte`
+
+**Examples**
+```typescript
+// Object syntax
+const users = await User.where({ status: 'active', role: 'admin' }).get();
+
+// Equality comparison
+const published = await BlogPost.where('status', 'published').get();
+
+// Greater than or equal
+const adults = await User.where('age', '>=', 18).get();
+
+// Less than
+const young = await User.where('age', '<', 30).get();
+
+// Not equal
+const nonAdmins = await User.where('role', '!=', 'admin').get();
+
+// Chaining multiple conditions
+const results = await User
+  .where('age', '>=', 18)
+  .where('age', '<=', 65)
+  .where('status', 'active')
+  .get();
+```
+
+---
+
+### whereIn()
+
+Filters models where the specified key's value is in the given array.
+
+```typescript
+whereIn<K extends keyof T>(key: K, values: any[]): QueryBuilder<T>
+```
+
+<ParamField path="key" type="K extends keyof T" required>
+  The property name to filter by
+</ParamField>
+
+<ParamField path="values" type="any[]" required>
+  Array of values to match against
+</ParamField>
+
+<ResponseField name="returns" type="QueryBuilder<T>">
+  The QueryBuilder instance for chaining
+</ResponseField>
+
+**Example**
+```typescript
+const posts = await Post.whereIn('categoryId', [1, 2, 3]).get();
+```
+
+**Note**: Automatically handles the `id` field by mapping it to MongoDB's `_id`.
+
+---
+
+### whereNotIn()
+
+Filters models where the specified key's value is not in the given array.
+
+```typescript
+whereNotIn<K extends keyof T>(key: K, values: any[]): QueryBuilder<T>
+```
+
+<ParamField path="key" type="K extends keyof T" required>
+  The property name to filter by
+</ParamField>
+
+<ParamField path="values" type="any[]" required>
+  Array of values to exclude
+</ParamField>
+
+<ResponseField name="returns" type="QueryBuilder<T>">
+  The QueryBuilder instance for chaining
+</ResponseField>
+
+**Example**
+```typescript
+const users = await User.whereNotIn('status', ['banned', 'suspended']).get();
+```
+
+---
+
+### orderBy()
+
+Sorts the results by the specified field.
+
+```typescript
+orderBy<K extends keyof T>(key: K, order?: 'asc' | 'desc'): QueryBuilder<T>
+```
+
+<ParamField path="key" type="K extends keyof T" required>
+  The property name to sort by
+</ParamField>
+
+<ParamField path="order" type="'asc' | 'desc'" default="'asc'">
+  Sort direction: ascending or descending
+</ParamField>
+
+<ResponseField name="returns" type="QueryBuilder<T>">
+  The QueryBuilder instance for chaining
+</ResponseField>
+
+**Examples**
+```typescript
+// Ascending order (default)
+const alphabetical = await User.orderBy('name').get();
+
+// Descending order
+const newest = await Post.orderBy('createdAt', 'desc').get();
+
+// Multiple order clauses
+const sorted = await User
+  .orderBy('lastName', 'asc')
+  .orderBy('firstName', 'asc')
+  .get();
+```
+
+---
+
+### limit()
+
+Limits the number of results returned.
+
+```typescript
+limit(length: number): QueryBuilder<T>
+```
+
+<ParamField path="length" type="number" required>
+  Maximum number of models to return
+</ParamField>
+
+<ResponseField name="returns" type="QueryBuilder<T>">
+  The QueryBuilder instance for chaining
+</ResponseField>
+
+**Example**
+```typescript
+const topTen = await Post.orderBy('views', 'desc').limit(10).get();
+```
+
+---
+
+### skip()
+
+Skips the specified number of results. Useful for pagination.
+
+```typescript
+skip(length: number): QueryBuilder<T>
+```
+
+<ParamField path="length" type="number" required>
+  Number of models to skip
+</ParamField>
+
+<ResponseField name="returns" type="QueryBuilder<T>">
+  The QueryBuilder instance for chaining
+</ResponseField>
+
+**Example**
+```typescript
+// Pagination: Page 3 with 20 items per page
+const page = 3;
+const perPage = 20;
+const results = await Post
+  .skip((page - 1) * perPage)
+  .limit(perPage)
+  .get();
+```
+
+---
+
+### search()
+
+Searches the collection's text index for the given query.
+
+```typescript
+search(query: string, caseSensitive = false): QueryBuilder<T>
+```
+
+<ParamField path="query" type="string" required>
+  The search query string
+</ParamField>
+
+<ParamField path="caseSensitive" type="boolean" default="false">
+  Whether the search should be case-sensitive
+</ParamField>
+
+<ResponseField name="returns" type="QueryBuilder<T>">
+  The QueryBuilder instance for chaining
+</ResponseField>
+
+**Example**
+```typescript
+const results = await Article.search('javascript tutorial').get();
+```
+
+**Note**: Requires a MongoDB text index on the collection. See [MongoDB text index documentation](https://www.mongodb.com/docs/manual/core/indexes/index-types/index-text/).
+
+---
+
+## Execution Methods
+
+These terminal methods execute the query and return results.
+
+### get()
+
+Executes the query and returns an array of models matching the query constraints.
+
+```typescript
+async get(): Promise<T[]>
+```
+
+<ResponseField name="returns" type="Promise<T[]>">
+  Array of model instances matching the query
+</ResponseField>
+
+**Example**
+```typescript
+const users = await User.where('status', 'active').get();
+```
+
+---
+
+### first()
+
+Executes the query and returns the first matching model.
+
+```typescript
+async first(): Promise<T | null>
+```
+
+<ResponseField name="returns" type="Promise<T | null>">
+  The first model instance matching the query, or `null` if none found
+</ResponseField>
+
+**Example**
+```typescript
+const newest = await Post.orderBy('createdAt', 'desc').first();
+```
+
+**Note**: Automatically applies `limit(1)` internally.
+
+---
+
+### find()
+
+Finds a model by its ID.
+
+```typescript
+async find(id: string): Promise<T | null>
+```
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the model
+</ParamField>
+
+<ResponseField name="returns" type="Promise<T | null>">
+  The model instance if found, otherwise `null`
+</ResponseField>
+
+**Example**
+```typescript
+const builder = new QueryBuilder(User);
+const user = await builder.find('507f1f77bcf86cd799439011');
+```
+
+**Note**: Handles both ObjectId strings and regular string IDs.
+
+---
+
+### count()
+
+Returns the number of documents matching the query.
+
+```typescript
+async count(): Promise<number>
+```
+
+<ResponseField name="returns" type="Promise<number>">
+  Total count of documents matching the query
+</ResponseField>
+
+**Example**
+```typescript
+const activeCount = await Customer
+  .where('hasPaidTheLastInvoice', true)
+  .count();
+```
+
+---
+
+### delete()
+
+Deletes all models matching the current query constraints.
+
+```typescript
+async delete(): Promise<number>
+```
+
+<ResponseField name="returns" type="Promise<number>">
+  Number of documents deleted
+</ResponseField>
+
+**Examples**
+```typescript
+// Delete all inactive users
+const deleted = await User.where('status', 'inactive').delete();
+
+// Delete specific models
+const count = await Post.whereIn('id', ['id1', 'id2']).delete();
+```
+
+**Warning**: Use with caution. This permanently removes documents from the database.
+
+---
+
+## Aggregation Methods
+
+These methods perform aggregation operations on the queried documents.
+
+### sum()
+
+Calculates the sum of values for a numeric field.
+
+```typescript
+async sum<K extends keyof T>(key: K): Promise<number>
+```
+
+<ParamField path="key" type="K extends keyof T" required>
+  The property name to sum
+</ParamField>
+
+<ResponseField name="returns" type="Promise<number>">
+  Sum of all values for the specified field
+</ResponseField>
+
+**Example**
+```typescript
+const totalRevenue = await Order
+  .where('status', 'completed')
+  .sum('amount');
+```
+
+---
+
+### average()
+
+Calculates the average of values for a numeric field.
+
+```typescript
+async average<K extends keyof T>(key: K): Promise<number>
+```
+
+<ParamField path="key" type="K extends keyof T" required>
+  The property name to average
+</ParamField>
+
+<ResponseField name="returns" type="Promise<number>">
+  Average of all values (returns 0 if no values)
+</ResponseField>
+
+**Example**
+```typescript
+const avgAge = await User
+  .where('country', 'USA')
+  .average('age');
+```
+
+**Throws**: Error if values are not all numbers.
+
+---
+
+### min()
+
+Finds the minimum value for a numeric field.
+
+```typescript
+async min<K extends keyof T>(key: K): Promise<number>
+```
+
+<ParamField path="key" type="K extends keyof T" required>
+  The property name to find minimum value
+</ParamField>
+
+<ResponseField name="returns" type="Promise<number>">
+  Minimum value for the specified field
+</ResponseField>
+
+**Example**
+```typescript
+const lowestPrice = await Product
+  .where('category', 'electronics')
+  .min('price');
+```
+
+---
+
+### max()
+
+Finds the maximum value for a numeric field.
+
+```typescript
+async max<K extends keyof T>(key: K): Promise<number>
+```
+
+<ParamField path="key" type="K extends keyof T" required>
+  The property name to find maximum value
+</ParamField>
+
+<ResponseField name="returns" type="Promise<number>">
+  Maximum value for the specified field
+</ResponseField>
+
+**Example**
+```typescript
+const highestScore = await GameScore
+  .where('gameId', 'game123')
+  .max('score');
+```
+
+---
+
+### percentile()
+
+Calculates the nth percentile of values for a numeric field.
+
+```typescript
+async percentile<K extends keyof T>(key: K, n: number): Promise<number>
+```
+
+<ParamField path="key" type="K extends keyof T" required>
+  The property name to calculate percentile
+</ParamField>
+
+<ParamField path="n" type="number" required>
+  The percentile to calculate (0-100)
+</ParamField>
+
+<ResponseField name="returns" type="Promise<number>">
+  The nth percentile value (returns 0 if no values)
+</ResponseField>
+
+**Examples**
+```typescript
+// Median (50th percentile)
+const median = await ResponseTime.percentile('value', 50);
+
+// 95th percentile
+const p95 = await ResponseTime.percentile('value', 95);
+
+// 99th percentile with query constraints
+const p99 = await ApiRequest
+  .where('endpoint', '/api/users')
+  .percentile('duration', 99);
+```
+
+---
+
+### pluck()
+
+Extracts an array of values for a specific field from all matching documents.
+
+```typescript
+async pluck<K extends keyof T>(key: K): Promise<T[K][]>
+```
+
+<ParamField path="key" type="K extends keyof T" required>
+  The property name to extract values from
+</ParamField>
+
+<ResponseField name="returns" type="Promise<T[K][]>">
+  Array of values for the specified field
+</ResponseField>
+
+**Example**
+```typescript
+const ids = await Post.where('categoryId', 2).pluck('id');
+// => ['1', '2', '3']
+
+const emails = await User.where('verified', true).pluck('email');
+// => ['user1@example.com', 'user2@example.com', ...]
+```
+
+---
+
+### aggregate()
+
+Provides direct access to MongoDB's aggregation pipeline for complex queries.
+
+```typescript
+async aggregate(stages: Record<string, unknown>[])
+```
+
+<ParamField path="stages" type="Record<string, unknown>[]" required>
+  Array of MongoDB aggregation pipeline stages
+</ParamField>
+
+<ResponseField name="returns" type="Promise<any>">
+  The result of the aggregation
+</ResponseField>
+
+**Examples**
+```typescript
+// Group by department and count
+const results = await User.aggregate([
+  { $group: { _id: '$department', count: { $sum: 1 } } }
+]);
+
+// Complex pipeline with multiple stages
+const stats = await Order.aggregate([
+  { $match: { status: 'completed' } },
+  { $group: {
+    _id: '$userId',
+    totalSpent: { $sum: '$amount' },
+    orderCount: { $sum: 1 }
+  }},
+  { $sort: { totalSpent: -1 } },
+  { $limit: 10 }
+]);
+```
+
+---
+
+## Internal Methods
+
+These methods are used internally by Esix and are not typically called directly.
+
+### create()
+
+Creates a new document with the given attributes.
+
+```typescript
+async create(attributes: Record<string, any>): Promise<string>
+```
+
+<ParamField path="attributes" type="Record<string, any>" required>
+  Object containing the document's attributes
+</ParamField>
+
+<ResponseField name="returns" type="Promise<string>">
+  The ID of the created document
+</ResponseField>
+
+**Note**: This is an internal method. Use `BaseModel.create()` instead.
+
+---
+
+### save()
+
+Persists the provided attributes to the database.
+
+```typescript
+async save(attributes: Dictionary): Promise<string>
+```
+
+<ParamField path="attributes" type="Dictionary" required>
+  Object containing the document's attributes
+</ParamField>
+
+<ResponseField name="returns" type="Promise<string>">
+  The ID of the saved document
+</ResponseField>
+
+**Note**: This is an internal method. Use the instance `save()` method on models instead.
+
+---
+
+### findOne()
+
+Returns the first model matching the query.
+
+```typescript
+async findOne(query: Query): Promise<T | null>
+```
+
+<ParamField path="query" type="Query" required>
+  Query object to match against
+</ParamField>
+
+<ResponseField name="returns" type="Promise<T | null>">
+  The first matching model instance, or `null` if none found
+</ResponseField>
+
+**Note**: This is an internal method used by other Esix operations.
+
+---
+
+## Security
+
+### NoSQL Injection Prevention
+
+QueryBuilder automatically sanitizes all input values using the internal `sanitize()` function to prevent NoSQL injection attacks. All user-provided values are sanitized before being passed to MongoDB.
+
+```typescript
+// Safe - values are automatically sanitized
+const user = await User.where('email', userInput).first();
+
+// Safe - array values are sanitized
+const posts = await Post.whereIn('id', userProvidedIds).get();
+```
+
+---
+
+## Type Safety
+
+QueryBuilder leverages TypeScript generics to provide compile-time type safety:
+
+```typescript
+class User extends BaseModel {
+  email: string = '';
+  age: number = 0;
+}
+
+// ✓ TypeScript knows 'email' and 'age' are valid
+const adults = await User.where('age', '>=', 18).get();
+
+// ✗ TypeScript error: 'invalidField' is not a property of User
+const invalid = await User.where('invalidField', 'value').get();
+
+// ✓ Return type is inferred as User[]
+const users: User[] = await User.where('age', '>', 21).get();
+```
+
+---
+
+## Query Type
+
+The `Query` type represents a flexible MongoDB query object:
+
+```typescript
+export type Query = { [index: string]: any }
+```
+
+This allows for complex query structures including MongoDB operators:
+
+```typescript
+const builder = new QueryBuilder(User);
+builder.where({
+  age: { $gte: 18, $lte: 65 },
+  status: { $in: ['active', 'pending'] }
+});
+```

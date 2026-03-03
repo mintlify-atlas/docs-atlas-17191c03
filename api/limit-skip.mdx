@@ -1,0 +1,397 @@
+---
+title: limit() / skip()
+description: Control the number of results and implement pagination
+---
+
+The `limit()` and `skip()` methods control how many results are returned and enable pagination of query results.
+
+## limit()
+
+Limit the number of models returned from the query.
+
+### Signature
+
+```typescript
+limit(length: number): QueryBuilder<T>
+```
+
+<ParamField path="length" type="number" required>
+  The maximum number of models to return
+</ParamField>
+
+### Returns
+
+<ResponseField name="QueryBuilder<T>" type="QueryBuilder<T>">
+  Returns the query builder instance for method chaining
+</ResponseField>
+
+### Examples
+
+```typescript
+// Get the first 10 users
+const users = await User.limit(10).get()
+
+// Get top 5 blog posts
+const topPosts = await BlogPost
+  .orderBy('views', 'desc')
+  .limit(5)
+  .get()
+
+// Get 20 most recent orders
+const recentOrders = await Order
+  .orderBy('createdAt', 'desc')
+  .limit(20)
+  .get()
+
+// Limited filtered results
+const activeUsers = await User
+  .where('status', 'active')
+  .limit(50)
+  .get()
+```
+
+## skip()
+
+Skip a specified number of models before returning results. Useful for pagination.
+
+### Signature
+
+```typescript
+skip(length: number): QueryBuilder<T>
+```
+
+<ParamField path="length" type="number" required>
+  The number of models to skip
+</ParamField>
+
+### Returns
+
+<ResponseField name="QueryBuilder<T>" type="QueryBuilder<T>">
+  Returns the query builder instance for method chaining
+</ResponseField>
+
+### Examples
+
+```typescript
+// Skip the first 10 users
+const users = await User.skip(10).get()
+
+// Skip first 20 results
+const nextBatch = await Product
+  .orderBy('name')
+  .skip(20)
+  .get()
+
+// Skip to specific position
+const laterResults = await BlogPost
+  .orderBy('publishedAt', 'desc')
+  .skip(100)
+  .limit(10)
+  .get()
+```
+
+## Pagination Examples
+
+### Basic Pagination
+
+Combine `limit()` and `skip()` for pagination:
+
+```typescript
+const pageSize = 20
+const pageNumber = 2 // Zero-indexed
+
+// Get page 3 (skip 40, take 20)
+const page = await User
+  .orderBy('name')
+  .skip(pageNumber * pageSize)
+  .limit(pageSize)
+  .get()
+```
+
+### Paginated Results Function
+
+```typescript
+async function getPaginatedUsers(page: number, pageSize: number = 20) {
+  const users = await User
+    .orderBy('createdAt', 'desc')
+    .skip(page * pageSize)
+    .limit(pageSize)
+    .get()
+  
+  const total = await User.count()
+  
+  return {
+    data: users,
+    page,
+    pageSize,
+    totalPages: Math.ceil(total / pageSize),
+    total
+  }
+}
+
+// Usage
+const result = await getPaginatedUsers(0) // First page
+const result2 = await getPaginatedUsers(1) // Second page
+```
+
+### Filtered Pagination
+
+```typescript
+// Paginate filtered results
+async function getActiveUsersPaginated(page: number, pageSize: number = 20) {
+  const users = await User
+    .where('status', 'active')
+    .orderBy('lastLoginAt', 'desc')
+    .skip(page * pageSize)
+    .limit(pageSize)
+    .get()
+  
+  const total = await User
+    .where('status', 'active')
+    .count()
+  
+  return {
+    data: users,
+    page,
+    pageSize,
+    totalPages: Math.ceil(total / pageSize),
+    total
+  }
+}
+```
+
+### Cursor-Based Pagination Alternative
+
+```typescript
+// More efficient for large datasets
+async function getUsersAfterCursor(lastId: string, pageSize: number = 20) {
+  const users = await User
+    .where('id', '>', lastId)
+    .orderBy('id')
+    .limit(pageSize)
+    .get()
+  
+  return {
+    data: users,
+    nextCursor: users.length > 0 ? users[users.length - 1].id : null,
+    hasMore: users.length === pageSize
+  }
+}
+
+// Usage
+const firstPage = await getUsersAfterCursor('', 20)
+const secondPage = await getUsersAfterCursor(firstPage.nextCursor!, 20)
+```
+
+## Combining with Other Methods
+
+### Top N Results
+
+```typescript
+// Top 10 highest-scoring players
+const topPlayers = await Player
+  .orderBy('score', 'desc')
+  .limit(10)
+  .get()
+
+// 5 most recent posts
+const latestPosts = await BlogPost
+  .where('status', 'published')
+  .orderBy('publishedAt', 'desc')
+  .limit(5)
+  .get()
+
+// First 3 expensive products in category
+const premiumProducts = await Product
+  .where('category', 'electronics')
+  .orderBy('price', 'desc')
+  .limit(3)
+  .get()
+```
+
+### Infinite Scroll
+
+```typescript
+const ITEMS_PER_LOAD = 20
+let offset = 0
+
+async function loadMorePosts() {
+  const posts = await BlogPost
+    .where('status', 'published')
+    .orderBy('publishedAt', 'desc')
+    .skip(offset)
+    .limit(ITEMS_PER_LOAD)
+    .get()
+  
+  offset += posts.length
+  return posts
+}
+
+// Initial load
+const initialPosts = await loadMorePosts() // 0-19
+
+// Scroll down, load more
+const morePosts = await loadMorePosts() // 20-39
+const evenMore = await loadMorePosts() // 40-59
+```
+
+### Batch Processing
+
+```typescript
+// Process all records in batches
+async function processAllUsers() {
+  const batchSize = 100
+  let offset = 0
+  let hasMore = true
+  
+  while (hasMore) {
+    const users = await User
+      .skip(offset)
+      .limit(batchSize)
+      .get()
+    
+    if (users.length === 0) {
+      hasMore = false
+      break
+    }
+    
+    // Process batch
+    await processBatch(users)
+    
+    offset += batchSize
+  }
+}
+```
+
+### Sampling Data
+
+```typescript
+// Get a sample of 100 random-ish records
+// (skip to a random offset)
+const total = await Product.count()
+const randomOffset = Math.floor(Math.random() * Math.max(0, total - 100))
+
+const sample = await Product
+  .skip(randomOffset)
+  .limit(100)
+  .get()
+```
+
+## Performance Considerations
+
+### Index Usage
+
+```typescript
+// Efficient: Uses index on 'createdAt'
+const recent = await Article
+  .orderBy('createdAt', 'desc')
+  .limit(10)
+  .get()
+
+// Less efficient: Large skip values scan many documents
+const farPage = await Article
+  .orderBy('createdAt', 'desc')
+  .skip(10000) // Slow for large offsets
+  .limit(10)
+  .get()
+```
+
+### Optimization Tips
+
+1. **Use indexes** on fields you sort by
+2. **Avoid large skip values** - consider cursor-based pagination instead
+3. **Combine with filters** to reduce the working set
+4. **Use count() separately** only when needed for UI
+
+```typescript
+// Good: Filter first, then paginate
+const activePage = await User
+  .where('status', 'active')
+  .orderBy('name')
+  .skip(page * pageSize)
+  .limit(pageSize)
+  .get()
+
+// Less efficient: Paginating huge result sets
+const hugePage = await User
+  .skip(50000)
+  .limit(20)
+  .get()
+```
+
+## Type Safety
+
+Both methods work with any model type:
+
+```typescript
+class User extends BaseModel {
+  name!: string
+  email!: string
+}
+
+// Fully type-safe
+const users: User[] = await User
+  .limit(10)
+  .skip(5)
+  .get()
+
+// TypeScript infers the return type correctly
+const firstUser: User | null = await User
+  .limit(1)
+  .first()
+```
+
+## Common Patterns
+
+### Table View with Sorting
+
+```typescript
+interface TableParams {
+  page: number
+  pageSize: number
+  sortField: keyof User
+  sortOrder: 'asc' | 'desc'
+}
+
+async function getUsersForTable(params: TableParams) {
+  const { page, pageSize, sortField, sortOrder } = params
+  
+  const users = await User
+    .orderBy(sortField, sortOrder)
+    .skip(page * pageSize)
+    .limit(pageSize)
+    .get()
+  
+  return users
+}
+```
+
+### Load More Button
+
+```typescript
+class PostFeed {
+  private posts: BlogPost[] = []
+  private offset = 0
+  private readonly pageSize = 10
+  
+  async loadMore() {
+    const newPosts = await BlogPost
+      .where('status', 'published')
+      .orderBy('publishedAt', 'desc')
+      .skip(this.offset)
+      .limit(this.pageSize)
+      .get()
+    
+    this.posts.push(...newPosts)
+    this.offset += newPosts.length
+    
+    return newPosts.length === this.pageSize // Has more?
+  }
+}
+```
+
+## Source
+
+Implementation:
+- `limit()`: `packages/esix/src/base-model.ts:195-204`, `packages/esix/src/query-builder.ts:239-247`
+- `skip()`: `packages/esix/src/base-model.ts:297-306`, `packages/esix/src/query-builder.ts:388-396`

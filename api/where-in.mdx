@@ -1,0 +1,170 @@
+---
+title: whereIn() / whereNotIn()
+description: Filter results where a field's value is (or isn't) in an array
+---
+
+The `whereIn()` and `whereNotIn()` methods filter query results based on whether a field's value exists within a given array.
+
+## whereIn()
+
+Filter to include only records where the field value matches any value in the array.
+
+### Signature
+
+```typescript
+whereIn<K extends keyof T>(key: K, values: any[]): QueryBuilder<T>
+```
+
+<ParamField path="key" type="keyof T" required>
+  The property name to check (must be a valid model field)
+</ParamField>
+
+<ParamField path="values" type="any[]" required>
+  Array of values to match against
+</ParamField>
+
+### Returns
+
+<ResponseField name="QueryBuilder<T>" type="QueryBuilder<T>">
+  Returns the query builder instance for method chaining
+</ResponseField>
+
+### Examples
+
+```typescript
+// Get comments for specific posts
+const comments = await Comment
+  .whereIn('postId', ['post1', 'post2', 'post3'])
+  .get()
+
+// Users in specific departments
+const teamMembers = await User
+  .whereIn('department', ['Engineering', 'Design', 'Product'])
+  .get()
+
+// Products with specific tags
+const electronics = await Product
+  .whereIn('category', ['phones', 'laptops', 'tablets'])
+  .get()
+
+// Orders with specific statuses
+const activeOrders = await Order
+  .whereIn('status', ['pending', 'processing', 'shipped'])
+  .get()
+```
+
+### Combining with Other Methods
+
+```typescript
+// Recent comments on featured posts
+const recentComments = await Comment
+  .whereIn('postId', featuredPostIds)
+  .where('createdAt', '>', Date.now() - 604800000) // Last 7 days
+  .orderBy('createdAt', 'desc')
+  .limit(20)
+  .get()
+
+// Active users in specific roles
+const activeAdmins = await User
+  .whereIn('role', ['admin', 'moderator'])
+  .where('status', 'active')
+  .get()
+```
+
+## whereNotIn()
+
+Filter to exclude records where the field value matches any value in the array.
+
+### Signature
+
+```typescript
+whereNotIn<K extends keyof T>(key: K, values: any[]): QueryBuilder<T>
+```
+
+<ParamField path="key" type="keyof T" required>
+  The property name to check (must be a valid model field)
+</ParamField>
+
+<ParamField path="values" type="any[]" required>
+  Array of values to exclude
+</ParamField>
+
+### Returns
+
+<ResponseField name="QueryBuilder<T>" type="QueryBuilder<T>">
+  Returns the query builder instance for method chaining
+</ResponseField>
+
+### Examples
+
+```typescript
+// Exclude specific users
+const otherUsers = await User
+  .whereNotIn('id', ['user1', 'user2', 'user3'])
+  .get()
+
+// Products excluding certain categories
+const nonElectronics = await Product
+  .whereNotIn('category', ['phones', 'laptops', 'computers'])
+  .get()
+
+// Users not in banned or suspended status
+const activeUsers = await User
+  .whereNotIn('status', ['banned', 'suspended', 'deleted'])
+  .get()
+
+// Posts excluding draft and archived
+const visiblePosts = await BlogPost
+  .whereNotIn('status', ['draft', 'archived', 'deleted'])
+  .get()
+```
+
+### Combining with Other Methods
+
+```typescript
+// Recent posts excluding certain authors
+const posts = await BlogPost
+  .whereNotIn('authorId', blockedAuthorIds)
+  .where('status', 'published')
+  .where('publishedAt', '>', Date.now() - 2592000000) // Last 30 days
+  .orderBy('publishedAt', 'desc')
+  .get()
+
+// Available products excluding out of stock categories
+const available = await Product
+  .whereNotIn('category', outOfStockCategories)
+  .where('quantity', '>', 0)
+  .orderBy('name')
+  .get()
+```
+
+## MongoDB Operator Mapping
+
+| Esix Method | MongoDB Operator | Description |
+|-------------|------------------|-------------|
+| `whereIn()` | `$in` | Matches any value in array |
+| `whereNotIn()` | `$nin` | Matches no values in array |
+
+## Type Safety
+
+Both methods are fully type-safe with TypeScript:
+
+```typescript
+class User extends BaseModel {
+  email!: string
+  role!: 'admin' | 'user' | 'guest'
+  status!: string
+}
+
+// TypeScript ensures 'role' is a valid User property
+const admins = await User.whereIn('role', ['admin', 'user']).get()
+
+// TypeScript error: 'invalidField' is not a property of User
+// const invalid = await User.whereIn('invalidField', ['value']).get()
+```
+
+## Source
+
+Implementation:
+- `whereIn()`: `packages/esix/src/base-model.ts:367-385`, `packages/esix/src/query-builder.ts:492-514`
+- `whereNotIn()`: `packages/esix/src/base-model.ts:387-406`, `packages/esix/src/query-builder.ts:516-538`

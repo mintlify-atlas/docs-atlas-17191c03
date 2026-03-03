@@ -1,0 +1,356 @@
+---
+title: Aggregations
+description: Perform calculations and analytics with count, sum, average, min, max, percentile, and custom aggregations
+---
+
+Esix provides powerful aggregation methods that allow you to perform calculations and analytics on your MongoDB collections with type-safe, chainable queries.
+
+## Counting Records
+
+The `count()` method returns the number of documents matching your query:
+
+```typescript
+const userCount = await User.count();
+
+const activeUserCount = await User.where('status', 'active').count();
+```
+
+### Method Signature
+
+```typescript
+static async count<T extends BaseModel>(
+  this: ObjectType<T>
+): Promise<number>
+```
+
+Source: `packages/esix/src/base-model.ts:69`
+
+<Info>
+  The `count()` method works with all query filters and returns 0 when no matching documents are found.
+</Info>
+
+## Sum
+
+The `sum()` method calculates the total of all values for a numeric field:
+
+```typescript
+const totalSales = await Order.sum('amount');
+
+const categoryTotal = await Order
+  .where('category', 'electronics')
+  .sum('amount');
+```
+
+### Method Signature
+
+```typescript
+static async sum<T extends BaseModel, K extends keyof T>(
+  this: ObjectType<T>,
+  key: K
+): Promise<number>
+```
+
+Source: `packages/esix/src/base-model.ts:318`
+
+## Average
+
+The `average()` method calculates the mean value of a numeric field:
+
+```typescript
+const avgAge = await User.average('age');
+
+const avgPremiumAge = await User
+  .where('subscription', 'premium')
+  .average('age');
+```
+
+### Method Signature
+
+```typescript
+static async average<T extends BaseModel, K extends keyof T>(
+  this: ObjectType<T>,
+  key: K
+): Promise<number>
+```
+
+Source: `packages/esix/src/base-model.ts:54`
+
+<Note>
+  The `average()` method returns 0 when no values exist.
+</Note>
+
+## Min
+
+The `min()` method finds the smallest value for a numeric field:
+
+```typescript
+const minAge = await User.min('age');
+
+const lowestPrice = await Product
+  .where('inStock', true)
+  .min('price');
+```
+
+### Method Signature
+
+```typescript
+static async min<T extends BaseModel, K extends keyof T>(
+  this: ObjectType<T>,
+  key: K
+): Promise<number>
+```
+
+Source: `packages/esix/src/base-model.ts:233`
+
+## Max
+
+The `max()` method finds the largest value for a numeric field:
+
+```typescript
+const maxScore = await Test.max('score');
+
+const highestPrice = await Product
+  .where('category', 'premium')
+  .max('price');
+```
+
+### Method Signature
+
+```typescript
+static async max<T extends BaseModel, K extends keyof T>(
+  this: ObjectType<T>,
+  key: K
+): Promise<number>
+```
+
+Source: `packages/esix/src/base-model.ts:216`
+
+## Percentile
+
+The `percentile()` method calculates the nth percentile of values for a numeric field:
+
+```typescript
+// Median (50th percentile)
+const median = await ResponseTime.percentile('value', 50);
+
+// 95th percentile response time
+const p95 = await ResponseTime.percentile('value', 95);
+
+// 99th percentile
+const p99 = await ResponseTime
+  .where('statusCode', 200)
+  .percentile('value', 99);
+```
+
+### Method Signature
+
+```typescript
+static async percentile<T extends BaseModel, K extends keyof T>(
+  this: ObjectType<T>,
+  key: K,
+  n: number
+): Promise<number>
+```
+
+Source: `packages/esix/src/base-model.ts:271`
+
+<Tip>
+  Percentiles are useful for performance monitoring and SLA tracking. The 95th percentile (p95) is commonly used to measure response times.
+</Tip>
+
+## Custom Aggregations
+
+The `aggregate()` method provides direct access to MongoDB's aggregation pipeline:
+
+```typescript
+const results = await User.aggregate([
+  { $group: { _id: '$department', count: { $sum: 1 } } }
+]);
+
+const salesByMonth = await Order.aggregate([
+  {
+    $group: {
+      _id: { $month: '$createdAt' },
+      total: { $sum: '$amount' },
+      count: { $sum: 1 }
+    }
+  },
+  { $sort: { _id: 1 } }
+]);
+```
+
+### Method Signature
+
+```typescript
+static async aggregate<T extends BaseModel>(
+  this: ObjectType<T>,
+  stages: Record<string, unknown>[]
+): Promise<any[]>
+```
+
+Source: `packages/esix/src/base-model.ts:25`
+
+<Warning>
+  The `aggregate()` method bypasses Esix's type safety and returns raw MongoDB results. Use it when built-in aggregation methods don't meet your needs.
+</Warning>
+
+## Combining with Filters
+
+All aggregation methods can be combined with query filters:
+
+```typescript
+class ResponseTime extends BaseModel {
+  public value = 0;
+  public statusCode = 200;
+  public endpoint = 'index';
+}
+
+// Average response time for successful requests
+const avgResponseTime = await ResponseTime
+  .where('statusCode', 200)
+  .average('value');
+
+// Count of slow requests
+const slowRequestCount = await ResponseTime
+  .where('value', '>', 1000)
+  .count();
+
+// Sum of all response times for a specific endpoint
+const totalTime = await ResponseTime
+  .where('endpoint', '/api/users')
+  .sum('value');
+```
+
+## Practical Examples
+
+### Analytics Dashboard
+
+```typescript
+class Order extends BaseModel {
+  public amount = 0;
+  public status = 'pending';
+  public customerId = '';
+}
+
+// Get comprehensive sales metrics
+const totalOrders = await Order.count();
+const totalRevenue = await Order.sum('amount');
+const averageOrderValue = await Order.average('amount');
+const largestOrder = await Order.max('amount');
+const smallestOrder = await Order.min('amount');
+
+console.log('Sales Dashboard');
+console.log('===============');
+console.log(`Total Orders: ${totalOrders}`);
+console.log(`Total Revenue: $${totalRevenue.toFixed(2)}`);
+console.log(`Average Order: $${averageOrderValue.toFixed(2)}`);
+console.log(`Largest Order: $${largestOrder.toFixed(2)}`);
+console.log(`Smallest Order: $${smallestOrder.toFixed(2)}`);
+```
+
+### Performance Monitoring
+
+```typescript
+class ResponseTime extends BaseModel {
+  public value = 0;
+  public statusCode = 200;
+}
+
+// Calculate response time percentiles
+const p50 = await ResponseTime
+  .where('statusCode', 200)
+  .percentile('value', 50);
+
+const p95 = await ResponseTime
+  .where('statusCode', 200)
+  .percentile('value', 95);
+
+const p99 = await ResponseTime
+  .where('statusCode', 200)
+  .percentile('value', 99);
+
+const maxResponseTime = await ResponseTime
+  .where('statusCode', 200)
+  .max('value');
+
+console.log('API Performance Metrics');
+console.log('========================');
+console.log(`Median (p50): ${p50}ms`);
+console.log(`95th Percentile: ${p95}ms`);
+console.log(`99th Percentile: ${p99}ms`);
+console.log(`Max: ${maxResponseTime}ms`);
+```
+
+### Department Statistics
+
+```typescript
+const departmentStats = await User.aggregate([
+  {
+    $group: {
+      _id: '$department',
+      count: { $sum: 1 },
+      avgAge: { $avg: '$age' },
+      minAge: { $min: '$age' },
+      maxAge: { $max: '$age' }
+    }
+  },
+  { $sort: { count: -1 } }
+]);
+
+departmentStats.forEach(dept => {
+  console.log(`${dept._id}: ${dept.count} employees`);
+  console.log(`  Age range: ${dept.minAge}-${dept.maxAge} (avg: ${dept.avgAge})`);
+});
+```
+
+## Data Type Validation
+
+<Warning>
+  All numeric aggregation methods (sum, average, min, max, percentile) validate that the field contains only numeric values. An error will be thrown if non-numeric values are encountered.
+</Warning>
+
+```typescript
+// This will throw an error if 'age' contains non-numeric values
+try {
+  const avgAge = await User.average('age');
+} catch (error) {
+  console.error('Non-numeric values found in age field');
+}
+```
+
+Source: `packages/esix/src/query-builder.ts:88`
+
+## MongoDB Aggregation Pipeline
+
+For complex analytics, use the aggregation pipeline:
+
+```typescript
+// Monthly sales report with multiple metrics
+const monthlySales = await Order.aggregate([
+  {
+    $group: {
+      _id: {
+        year: { $year: '$createdAt' },
+        month: { $month: '$createdAt' }
+      },
+      totalRevenue: { $sum: '$amount' },
+      orderCount: { $sum: 1 },
+      avgOrderValue: { $avg: '$amount' },
+      maxOrder: { $max: '$amount' }
+    }
+  },
+  { $sort: { '_id.year': -1, '_id.month': -1 } },
+  { $limit: 12 }
+]);
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Filtering" icon="filter" href="/filtering">
+    Learn how to filter data before aggregating
+  </Card>
+  <Card title="Retrieving Models" icon="database" href="/retrieving-models">
+    Go back to basic model retrieval methods
+  </Card>
+</CardGroup>

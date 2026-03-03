@@ -1,0 +1,258 @@
+---
+title: Pagination
+description: Implement pagination and sorting with limit, skip, and orderBy methods
+---
+
+Esix provides simple yet powerful methods for paginating and sorting your query results, making it easy to build efficient data browsing interfaces.
+
+## Limiting Results
+
+The `limit()` method restricts the number of models returned:
+
+```typescript
+const firstTenPosts = await BlogPost.limit(10).get();
+```
+
+### Method Signature
+
+```typescript
+static limit<T extends BaseModel>(
+  this: ObjectType<T>,
+  length: number
+): QueryBuilder<T>
+```
+
+Source: `packages/esix/src/base-model.ts:199`
+
+## Skipping Results
+
+The `skip()` method skips a specified number of results, useful for pagination:
+
+```typescript
+const nextTenPosts = await BlogPost.skip(10).limit(10).get();
+```
+
+### Method Signature
+
+```typescript
+static skip<T extends BaseModel>(
+  this: ObjectType<T>,
+  length: number
+): QueryBuilder<T>
+```
+
+Source: `packages/esix/src/base-model.ts:301`
+
+<Info>
+  The `skip()` method is chainable with `limit()` and other query methods for flexible pagination.
+</Info>
+
+## Ordering Results
+
+The `orderBy()` method sorts results by a specific field:
+
+```typescript
+// Ascending order (default)
+const postsByTitle = await BlogPost.orderBy('title').get();
+
+// Descending order
+const latestPosts = await BlogPost.orderBy('createdAt', 'desc').get();
+```
+
+### Method Signature
+
+```typescript
+static orderBy<T extends BaseModel, K extends keyof T>(
+  this: ObjectType<T>,
+  key: K,
+  order: 'asc' | 'desc' = 'asc'
+): QueryBuilder<T>
+```
+
+Source: `packages/esix/src/base-model.ts:251`
+
+### Multiple Sort Fields
+
+Chain multiple `orderBy()` calls to sort by multiple fields:
+
+```typescript
+const products = await Product
+  .orderBy('price', 'desc')
+  .orderBy('name', 'asc')
+  .get();
+```
+
+This first sorts by price (descending), then by name (ascending) for items with the same price.
+
+## Implementing Pagination
+
+### Basic Pagination
+
+Combine `skip()` and `limit()` for page-based navigation:
+
+```typescript
+const pageSize = 10;
+const pageNumber = 2; // Zero-based: 0 = first page, 1 = second page, etc.
+
+const products = await Product
+  .skip(pageNumber * pageSize)
+  .limit(pageSize)
+  .get();
+```
+
+### Pagination Helper Function
+
+Create a reusable pagination helper:
+
+```typescript
+async function paginate<T extends BaseModel>(
+  model: ObjectType<T>,
+  page: number,
+  perPage: number = 10
+) {
+  const skip = page * perPage;
+  
+  const [items, total] = await Promise.all([
+    model.skip(skip).limit(perPage).get(),
+    model.count()
+  ]);
+  
+  return {
+    items,
+    page,
+    perPage,
+    total,
+    totalPages: Math.ceil(total / perPage),
+    hasNext: (page + 1) * perPage < total,
+    hasPrev: page > 0
+  };
+}
+
+// Usage
+const result = await paginate(Product, 0, 20);
+console.log(`Page ${result.page + 1} of ${result.totalPages}`);
+console.log(`Showing ${result.items.length} of ${result.total} products`);
+```
+
+## Sorting Examples
+
+### Ascending Order
+
+```typescript
+const productsByPrice = await Product
+  .orderBy('price')
+  .get();
+// Returns: Widget 4 ($19.99), Widget 2 ($44.99), Chair 2 ($49.99), ...
+```
+
+### Descending Order
+
+```typescript
+const productsByPriceDesc = await Product
+  .orderBy('price', 'desc')
+  .get();
+// Returns: Widget 3 ($129.99), Widget 1 ($79.99), Chair 1 ($79.99), ...
+```
+
+### Multi-Field Sorting
+
+```typescript
+const products = await Product
+  .orderBy('categoryId', 'asc')
+  .orderBy('price', 'desc')
+  .get();
+// Groups by category, then sorts by price within each category
+```
+
+## Complete Pagination Example
+
+Here's a full example showing pagination with filtering and sorting:
+
+```typescript
+class Product extends BaseModel {
+  public name = '';
+  public price = 0;
+  public categoryId?: number;
+}
+
+// Get the second page of products in category 1,
+// sorted by price, with 10 items per page
+const page = 1; // Second page (zero-based)
+const pageSize = 10;
+
+const products = await Product
+  .where('categoryId', 1)
+  .orderBy('price', 'asc')
+  .skip(page * pageSize)
+  .limit(pageSize)
+  .get();
+
+console.log(`Showing products ${page * pageSize + 1}-${(page + 1) * pageSize}`);
+```
+
+## Extracting Specific Values
+
+The `pluck()` method extracts an array of values for a specific field:
+
+```typescript
+const titles = await BlogPost.pluck('title');
+// Returns: ['My First Post', 'Another Post', ...]
+
+const prices = await Product
+  .orderBy('price')
+  .pluck('price');
+// Returns: [19.99, 44.99, 49.99, 79.99, ...]
+```
+
+### Method Signature
+
+```typescript
+static pluck<T extends BaseModel, K extends keyof T>(
+  this: ObjectType<T>,
+  key: K
+): Promise<T[K][]>
+```
+
+Source: `packages/esix/src/base-model.ts:289`
+
+<Tip>
+  Use `pluck()` when you only need values from a single field, as it's more efficient than retrieving full models.
+</Tip>
+
+## Performance Considerations
+
+<Warning>
+  For large datasets, avoid large skip values (e.g., `skip(10000)`). MongoDB must traverse all skipped documents, which can be slow. Consider cursor-based pagination for better performance.
+</Warning>
+
+### Cursor-Based Pagination Alternative
+
+For better performance with large datasets:
+
+```typescript
+// First page
+const firstPage = await Product
+  .orderBy('id', 'asc')
+  .limit(20)
+  .get();
+
+const lastId = firstPage[firstPage.length - 1].id;
+
+// Next page using cursor
+const nextPage = await Product
+  .where('id', '>', lastId)
+  .orderBy('id', 'asc')
+  .limit(20)
+  .get();
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Filtering" icon="filter" href="/filtering">
+    Learn more about filtering with where clauses
+  </Card>
+  <Card title="Aggregations" icon="calculator" href="/aggregations">
+    Perform calculations and analytics on your data
+  </Card>
+</CardGroup>

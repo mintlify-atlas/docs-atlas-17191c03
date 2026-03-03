@@ -1,0 +1,164 @@
+---
+title: 'find() & findBy()'
+description: 'Retrieve models by ID or by a specific field value'
+---
+
+## find()
+
+### Method Signature
+
+```typescript
+static async find<T extends BaseModel>(
+  id: string
+): Promise<T | null>
+```
+
+Returns the model with the given ID.
+
+### Parameters
+
+<ParamField path="id" type="string" required>
+  The MongoDB ObjectId as a string. This is the unique identifier for the document.
+</ParamField>
+
+### Returns
+
+<ResponseField name="model" type="Promise<T | null>">
+  Returns a promise that resolves to the model instance if found, or `null` if no model exists with that ID.
+</ResponseField>
+
+### Examples
+
+#### Basic Find
+
+```typescript
+const post = await BlogPost.find('5f5a41cc3eb990709eafda43');
+
+if (post) {
+  console.log(post.title);
+} else {
+  console.log('Post not found');
+}
+```
+
+#### Error Handling
+
+```typescript
+try {
+  const user = await User.find(userId);
+  
+  if (!user) {
+    throw new Error('User not found');
+  }
+  
+  // Process user...
+} catch (error) {
+  console.error('Error retrieving user:', error);
+}
+```
+
+---
+
+## findBy()
+
+### Method Signature
+
+```typescript
+static async findBy<T extends BaseModel, K extends keyof T | '_id'>(
+  key: K,
+  value: K extends keyof T ? T[K] : any
+): Promise<T | null>
+```
+
+Returns the first model where the specified field matches the given value. Type-safe for model properties.
+
+### Parameters
+
+<ParamField path="key" type="keyof T | '_id'" required>
+  A property of the model or `'_id'`. Must be a valid property name on the model.
+</ParamField>
+
+<ParamField path="value" type="T[K] | any" required>
+  The value to match against. The type is inferred from the key parameter for type safety.
+</ParamField>
+
+### Returns
+
+<ResponseField name="model" type="Promise<T | null>">
+  Returns a promise that resolves to the first model instance matching the criteria, or `null` if no match is found.
+</ResponseField>
+
+### Examples
+
+#### Find by Email
+
+```typescript
+const user = await User.findBy('email', 'john.smith@company.com');
+
+if (user) {
+  console.log(`Found user: ${user.name}`);
+}
+```
+
+#### Find by Custom Field
+
+```typescript
+// Find product by SKU
+const product = await Product.findBy('sku', 'WM-001');
+
+// Find post by slug
+const post = await BlogPost.findBy('slug', 'my-first-post');
+
+// Find order by order number
+const order = await Order.findBy('orderNumber', 'ORD-12345');
+```
+
+#### Type-Safe Usage
+
+```typescript
+class User extends BaseModel {
+  email = '';
+  username = '';
+  age = 0;
+}
+
+// Type-safe: 'email' expects string
+const user1 = await User.findBy('email', 'user@example.com'); // ✓
+
+// Type-safe: 'age' expects number
+const user2 = await User.findBy('age', 25); // ✓
+
+// TypeScript will error if types don't match
+// const user3 = await User.findBy('age', 'twenty-five'); // ✗
+```
+
+#### Find by _id
+
+```typescript
+// Using findBy with _id
+const post = await BlogPost.findBy('_id', '5f5a41cc3eb990709eafda43');
+
+// Equivalent to find()
+const samePost = await BlogPost.find('5f5a41cc3eb990709eafda43');
+```
+
+## Comparison with Other Methods
+
+```typescript
+// find() - Retrieve by ID only
+const post1 = await BlogPost.find(postId);
+
+// findBy() - Retrieve by any field
+const post2 = await BlogPost.findBy('slug', 'my-post');
+
+// where().first() - More flexible querying
+const post3 = await BlogPost.where('status', 'published')
+  .where('views', '>', 1000)
+  .first();
+```
+
+## Related Methods
+
+- [where()](/api/where) - Query with more complex conditions
+- [create()](/api/create) - Create a new model
+- [firstOrCreate()](/api/first-or-create) - Find or create a model

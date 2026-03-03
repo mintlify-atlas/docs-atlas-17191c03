@@ -1,0 +1,378 @@
+---
+title: "Query Builder"
+description: "Advanced query building with the QueryBuilder class"
+---
+
+## Overview
+
+The QueryBuilder class is the heart of Esix's querying system. It provides a fluent interface for building complex MongoDB queries with type safety and automatic sanitization.
+
+## How It Works
+
+Most static methods on BaseModel return a QueryBuilder instance, allowing you to chain multiple query methods together before executing the query.
+
+```typescript
+const users = await User
+  .where('age', '>=', 18)
+  .where('status', 'active')
+  .orderBy('createdAt', 'desc')
+  .limit(10)
+  .get()
+```
+
+## Query Methods
+
+### where()
+
+Filter results based on field values. Supports three syntax styles:
+
+#### Object Syntax
+
+```typescript
+// Pass an object with multiple conditions
+const users = await User.where({
+  status: 'active',
+  role: 'admin'
+}).get()
+```
+
+#### Two-Parameter Syntax (Equality)
+
+```typescript
+// Simple equality check
+const posts = await Post.where('status', 'published').get()
+```
+
+#### Three-Parameter Syntax (Comparison Operators)
+
+```typescript
+// Using comparison operators
+const adults = await User.where('age', '>=', 18).get()
+const recentPosts = await Post.where('createdAt', '>', Date.now() - 86400000).get()
+const affordableProducts = await Product.where('price', '<=', 50).get()
+const activeUsers = await User.where('status', '!=', 'banned').get()
+```
+
+**Supported operators:**
+- `=` - Equal to (same as two-parameter syntax)
+- `!=` or `<>` - Not equal to
+- `>` - Greater than
+- `>=` - Greater than or equal to
+- `<` - Less than
+- `<=` - Less than or equal to
+
+<Info>
+  Comparison operators are automatically converted to MongoDB operators (`$gt`, `$gte`, `$lt`, `$lte`, `$ne`).
+</Info>
+
+### whereIn()
+
+Filter results where a field's value is in an array of values:
+
+```typescript
+const posts = await Post.whereIn('categoryId', ['1', '2', '3']).get()
+
+const users = await User.whereIn('role', ['admin', 'moderator']).get()
+```
+
+### whereNotIn()
+
+Filter results where a field's value is NOT in an array of values:
+
+```typescript
+const users = await User.whereNotIn('status', ['banned', 'suspended']).get()
+
+const posts = await Post.whereNotIn('id', archivedPostIds).get()
+```
+
+### orderBy()
+
+Sort results by a field in ascending or descending order:
+
+```typescript
+// Ascending order (default)
+const users = await User.orderBy('name').get()
+
+// Descending order
+const posts = await Post.orderBy('createdAt', 'desc').get()
+
+// Multiple sort fields
+const products = await Product
+  .orderBy('category')
+  .orderBy('price', 'desc')
+  .get()
+```
+
+### limit()
+
+Limit the number of results returned:
+
+```typescript
+const latestPosts = await Post
+  .orderBy('createdAt', 'desc')
+  .limit(10)
+  .get()
+```
+
+### skip()
+
+Skip a number of results (useful for pagination):
+
+```typescript
+// Get page 2 with 20 items per page
+const page = 2
+const perPage = 20
+
+const users = await User
+  .orderBy('createdAt', 'desc')
+  .skip((page - 1) * perPage)
+  .limit(perPage)
+  .get()
+```
+
+### search()
+
+Search using MongoDB's text index:
+
+```typescript
+// Search for posts containing "typescript"
+const posts = await Post.search('typescript').get()
+
+// Case-sensitive search
+const results = await Article.search('TypeScript', true).get()
+```
+
+<Warning>
+  The `search()` method requires a text index on your collection. See [MongoDB text indexes](https://www.mongodb.com/docs/manual/core/indexes/index-types/index-text/) for setup instructions.
+</Warning>
+
+## Execution Methods
+
+### get()
+
+Execute the query and return an array of models:
+
+```typescript
+const users: User[] = await User.where('status', 'active').get()
+```
+
+### first()
+
+Execute the query and return the first result (or null):
+
+```typescript
+const user: User | null = await User
+  .where('email', 'john@example.com')
+  .first()
+```
+
+### count()
+
+Return the number of documents matching the query:
+
+```typescript
+const activeUserCount = await User.where('status', 'active').count()
+```
+
+### delete()
+
+Delete all documents matching the query and return the count of deleted documents:
+
+```typescript
+const deletedCount = await Post
+  .where('status', 'draft')
+  .where('createdAt', '<', Date.now() - 2592000000) // 30 days old
+  .delete()
+
+console.log(`Deleted ${deletedCount} old draft posts`)
+```
+
+<Warning>
+  The `delete()` method permanently removes documents. Use with caution.
+</Warning>
+
+## Aggregation Methods
+
+The QueryBuilder provides methods for calculating aggregate values:
+
+### sum()
+
+Calculate the sum of a numeric field:
+
+```typescript
+const totalSales = await Order
+  .where('status', 'completed')
+  .sum('amount')
+```
+
+### average()
+
+Calculate the average of a numeric field:
+
+```typescript
+const avgAge = await User.where('role', 'customer').average('age')
+```
+
+### min() and max()
+
+Find the minimum or maximum value:
+
+```typescript
+const lowestPrice = await Product.where('inStock', true).min('price')
+const highestScore = await Test.where('subject', 'math').max('score')
+```
+
+### percentile()
+
+Calculate the nth percentile:
+
+```typescript
+const median = await ResponseTime.percentile('value', 50)
+const p95 = await ResponseTime.percentile('value', 95)
+const p99 = await ResponseTime.percentile('value', 99)
+```
+
+### pluck()
+
+Extract an array of values for a specific field:
+
+```typescript
+const userIds = await User.where('status', 'active').pluck('id')
+const titles = await Post.where('published', true).pluck('title')
+```
+
+## Advanced: Direct Aggregation
+
+For complex queries, you can use MongoDB's aggregation pipeline directly:
+
+```typescript
+const results = await User.aggregate([
+  {
+    $group: {
+      _id: '$department',
+      count: { $sum: 1 },
+      avgAge: { $avg: '$age' }
+    }
+  },
+  {
+    $sort: { count: -1 }
+  }
+])
+```
+
+## Real-World Examples
+
+### Pagination
+
+```typescript
+function paginate(page: number, perPage: number = 20) {
+  return User
+    .where('status', 'active')
+    .orderBy('createdAt', 'desc')
+    .skip((page - 1) * perPage)
+    .limit(perPage)
+}
+
+const page1 = await paginate(1).get()
+const page2 = await paginate(2).get()
+```
+
+### Complex Filtering
+
+```typescript
+const premiumActiveUsers = await User
+  .where('status', 'active')
+  .where('subscriptionTier', 'premium')
+  .where('lastLoginAt', '>', Date.now() - 604800000) // Active in last 7 days
+  .orderBy('lastLoginAt', 'desc')
+  .get()
+```
+
+### Analytics Query
+
+```typescript
+// Get statistics for completed orders this month
+const startOfMonth = new Date()
+startOfMonth.setDate(1)
+startOfMonth.setHours(0, 0, 0, 0)
+
+const orderQuery = Order
+  .where('status', 'completed')
+  .where('createdAt', '>=', startOfMonth.getTime())
+
+const totalOrders = await orderQuery.count()
+const totalRevenue = await orderQuery.sum('amount')
+const avgOrderValue = await orderQuery.average('amount')
+
+console.log({
+  totalOrders,
+  totalRevenue,
+  avgOrderValue
+})
+```
+
+### Batch Operations
+
+```typescript
+// Archive old inactive users
+const sixMonthsAgo = Date.now() - 15552000000
+
+const archivedCount = await User
+  .where('status', 'inactive')
+  .where('lastLoginAt', '<', sixMonthsAgo)
+  .limit(1000) // Batch size
+  .delete()
+
+console.log(`Archived ${archivedCount} users`)
+```
+
+## Type Safety
+
+The QueryBuilder is fully type-safe. TypeScript will:
+
+- Ensure field names exist on the model
+- Check that values match the field types
+- Provide autocomplete for field names and methods
+- Catch errors at compile time
+
+```typescript
+class User extends BaseModel {
+  public name = ''
+  public age = 0
+  public email = ''
+}
+
+// ✅ TypeScript approves
+const users = await User.where('age', '>', 18).get()
+
+// ❌ TypeScript error: 'invalidField' doesn't exist
+const invalid = await User.where('invalidField', 'value').get()
+
+// ✅ TypeScript knows the return type
+const names: string[] = await User.pluck('name')
+```
+
+## Implementation Details
+
+The QueryBuilder class (query-builder.ts) provides:
+
+- **Automatic sanitization**: All inputs are sanitized to prevent NoSQL injection
+- **Lazy execution**: Queries are only executed when you call an execution method like `get()`, `first()`, or `count()`
+- **Method chaining**: All query methods return `this` for fluent chaining
+- **MongoDB integration**: Translates to native MongoDB queries
+- **Collection naming**: Automatically pluralizes and kebab-cases model names
+
+<Info>
+  For example, a `User` model maps to the `users` collection, and `BlogPost` maps to `blog-posts`.
+</Info>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Relationships" icon="link" href="/relationships">
+    Learn how to query related models with hasMany()
+  </Card>
+  <Card title="Security" icon="shield" href="/security">
+    Understand how QueryBuilder prevents NoSQL injection
+  </Card>
+</CardGroup>

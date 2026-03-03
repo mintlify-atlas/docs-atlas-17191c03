@@ -1,0 +1,243 @@
+---
+title: 'First or Create'
+description: 'Find existing models or create new ones in a single operation using firstOrCreate()'
+---
+
+## Overview
+
+The `firstOrCreate()` method is a convenient way to retrieve an existing model or create a new one if it doesn't exist. This is particularly useful for ensuring unique records or preventing duplicates.
+
+## Method Signature
+
+```typescript packages/esix/src/base-model.ts
+static async firstOrCreate<T extends BaseModel>(
+  this: ObjectType<T>,
+  filter: Partial<T>,
+  attributes?: Partial<T>
+): Promise<T>
+```
+
+## Basic Usage
+
+The simplest form uses a single parameter as both the search filter and creation attributes:
+
+```typescript
+const flight = await Flight.firstOrCreate({
+  name: 'London to Paris'
+});
+```
+
+This will:
+1. Search for a flight with `name: 'London to Paris'`
+2. Return it if found
+3. Create a new flight with that name if not found
+
+## Two-Parameter Syntax
+
+For more control, provide separate filter and creation attributes:
+
+<CodeGroup>
+
+```typescript Basic Example
+const flight = await Flight.firstOrCreate(
+  { name: 'London to Paris' },
+  { delayed: 1, arrival_time: '11:30' }
+);
+```
+
+```typescript User Example
+const user = await User.firstOrCreate(
+  { email: 'john@example.com' },
+  { 
+    email: 'john@example.com',
+    name: 'John Smith',
+    role: 'user',
+    status: 'active'
+  }
+);
+```
+
+</CodeGroup>
+
+With two parameters:
+- **First parameter** - Used to search for existing records
+- **Second parameter** - Additional attributes applied only when creating new records
+- The final attributes are merged: `{ ...filter, ...attributes }`
+
+## How It Works
+
+The method follows this flow:
+
+1. Query the database using the `filter` parameter
+2. If a matching model is found, return it immediately
+3. If no match is found, create a new model with merged attributes
+4. Return the newly created model
+
+```typescript Internal Flow
+const existingModel = await QueryBuilder.findOne(filter);
+
+if (existingModel) {
+  return existingModel; // Return existing
+}
+
+return this.create({ ...filter, ...attributes }); // Create new
+```
+
+## Common Use Cases
+
+### Preventing Duplicates
+
+```typescript
+// Ensure a book with this ISBN exists
+const book = await Book.firstOrCreate(
+  { isbn: '9780486284736' },
+  {
+    title: 'Pride and Prejudice',
+    pages: 279,
+    authorId: 'author-1'
+  }
+);
+
+// If the book already exists, no duplicate is created
+```
+
+### User Registration
+
+```typescript
+const user = await User.firstOrCreate(
+  { email: 'user@example.com' },
+  {
+    name: 'New User',
+    createdAt: Date.now(),
+    status: 'pending'
+  }
+);
+
+if (user.status === 'pending') {
+  // Send welcome email
+} else {
+  // User already existed
+}
+```
+
+### Configuration Records
+
+```typescript
+const config = await AppConfig.firstOrCreate(
+  { key: 'theme' },
+  { 
+    key: 'theme',
+    value: 'light',
+    description: 'Application theme setting'
+  }
+);
+```
+
+### Tag Management
+
+```typescript
+const tag = await Tag.firstOrCreate(
+  { name: 'typescript' },
+  {
+    name: 'typescript',
+    slug: 'typescript',
+    color: '#3178c6'
+  }
+);
+```
+
+## Return Value Distinction
+
+You can determine if a model was created or already existed:
+
+```typescript
+const bookBefore = await Book.findBy('isbn', '9780486284736');
+const wasNull = bookBefore === null;
+
+const book = await Book.firstOrCreate(
+  { isbn: '9780486284736' },
+  { title: 'Pride and Prejudice', pages: 279 }
+);
+
+if (wasNull) {
+  console.log('Created new book');
+} else {
+  console.log('Book already existed');
+}
+```
+
+<Note>
+Alternatively, check timestamps to determine if a record was just created by comparing `createdAt` with the current time.
+</Note>
+
+## With Default Values
+
+Model default values are automatically applied during creation:
+
+```typescript
+class Book extends BaseModel {
+  public isAvailable = true;
+  public isbn = '';
+  public title = '';
+}
+
+const book = await Book.firstOrCreate(
+  { isbn: '9780140449266' },
+  {
+    title: 'Crime and Punishment',
+    pages: 688
+  }
+);
+
+// book.isAvailable is true (from model defaults)
+```
+
+## Error Handling
+
+```typescript
+try {
+  const flight = await Flight.firstOrCreate(
+    { name: 'London to Paris' },
+    { delayed: 0, arrival_time: '10:30' }
+  );
+} catch (error) {
+  console.error('Failed to find or create flight:', error);
+}
+```
+
+## Best Practices
+
+<Tip>
+Use unique identifiers in your filter (like email, ISBN, or slug) to avoid creating unintended duplicates.
+</Tip>
+
+<Warning>
+Be aware that `firstOrCreate()` is not atomic. In high-concurrency scenarios, two requests might both not find a record and both attempt to create it. Consider using unique indexes in MongoDB for critical fields.
+</Warning>
+
+### Recommended Pattern
+
+```typescript
+// Good: Using a unique identifier
+const user = await User.firstOrCreate(
+  { email: 'unique@example.com' },
+  { name: 'User Name' }
+);
+
+// Avoid: Using non-unique fields
+const user = await User.firstOrCreate(
+  { name: 'John' }, // Many users might have this name
+  { email: 'john123@example.com' }
+);
+```
+
+## Related Methods
+
+<CardGroup cols={2}>
+  <Card title="Creating Models" icon="plus" href="/creating-models">
+    Learn about the create() method
+  </Card>
+  <Card title="Query Builder" icon="magnifying-glass" href="/query-builder">
+    Advanced querying techniques
+  </Card>
+</CardGroup>

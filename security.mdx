@@ -1,0 +1,449 @@
+---
+title: "Security"
+description: "Built-in protection against NoSQL injection attacks"
+---
+
+## Overview
+
+Esix automatically protects your application against NoSQL injection attacks by sanitizing all user inputs before they reach MongoDB. This protection is built-in and requires no configuration.
+
+## NoSQL Injection Threat
+
+NoSQL injection occurs when user-provided data is used in database queries without proper sanitization. Attackers can exploit this by injecting MongoDB operators to bypass authentication or access unauthorized data.
+
+### Example Attack
+
+Consider this vulnerable code:
+
+```javascript
+// ⚠️ Vulnerable code (without Esix)
+const username = req.body.username // "admin"
+const password = req.body.password // { $ne: null }
+
+const user = await db.collection('users').findOne({
+  username: username,
+  password: password // This will match any user!
+})
+```
+
+An attacker could send:
+```json
+{
+  "username": "admin",
+  "password": { "$ne": null }
+}
+```
+
+This query would match any user with the username "admin" regardless of the password, because `{ $ne: null }` matches any non-null value.
+
+## How Esix Protects You
+
+Esix uses the `sanitize()` function to automatically remove MongoDB operators from all user inputs:
+
+```typescript
+import { User } from './models'
+
+// ✅ Safe with Esix - injection attempt is neutralized
+const username = req.body.username // "admin"
+const password = req.body.password // { $ne: null }
+
+const user = await User
+  .where('username', username)
+  .where('password', password)
+  .first()
+
+// Result: null (attacker fails!)
+```
+
+The malicious `{ $ne: null }` object is sanitized to `{}`, which doesn't match any password.
+
+## The Sanitize Function
+
+The sanitization happens in the `sanitize()` function (sanitize.ts):
+
+```typescript
+export function sanitize<T>(input: T): T | T[] {
+  if (!isObject(input)) {
+    return input
+  }
+
+  if (Array.isArray(input)) {
+    return input.map((value) => sanitize(value))
+  }
+
+  const keys = Object.keys(input)
+
+  return keys.reduce((carry, key) => {
+    if (isString(key) && key.startsWith('$')) {
+      return carry // Skip keys starting with '$'
+    }
+
+    return {
+      ...carry,
+      [key]: sanitize((input as Record<string, any>)[key])
+    }
+  }, {} as T)
+}
+```
+
+### What It Does
+
+1. **Removes MongoDB operators**: Any key starting with `$` is removed
+2. **Recursive sanitization**: Nested objects and arrays are sanitized recursively
+3. **Preserves valid data**: Regular string, number, boolean, and null values pass through unchanged
+
+### Examples
+
+```typescript
+import { sanitize } from 'esix'
+
+// Removes MongoDB operators
+sanitize({ $ne: null })
+// Result: {}
+
+sanitize({ username: 'john', password: { $ne: null } })
+// Result: { username: 'john', password: {} }
+
+// Handles nested structures
+sanitize({
+  user: {
+    $or: [
+      { role: 'admin' },
+      { role: 'moderator' }
+    ]
+  }
+})
+// Result: { user: {} }
+
+// Preserves valid data
+sanitize({ username: 'john', age: 25, active: true })
+// Result: { username: 'john', age: 25, active: true }
+
+// Works with arrays
+sanitize(['admin', { $ne: 'banned' }, 'moderator'])
+// Result: ['admin', {}, 'moderator']
+```
+
+## Automatic Protection
+
+Sanitization is applied automatically in several places:
+
+### 1. Query Builder
+
+All `where()` clauses are sanitized:
+
+```typescript
+// User input is automatically sanitized
+const maliciousInput = { $ne: null }
+
+const user = await User
+  .where('password', maliciousInput) // Automatically sanitized
+  .first()
+```
+
+### 2. whereIn() and whereNotIn()
+
+Array values are sanitized:
+
+```typescript
+const maliciousIds = ['valid-id', { $ne: null }]
+
+const users = await User
+  .whereIn('id', maliciousIds) // Automatically sanitized
+  .get()
+```
+
+### 3. Model Creation
+
+Attributes are sanitized when creating models:
+
+```typescript
+const user = await User.create({
+  username: 'john',
+  metadata: { $where: 'malicious code' } // Automatically sanitized
+})
+```
+
+### 4. Model Updates
+
+Updates are sanitized:
+
+```typescript
+const user = await User.find('user-123')
+user.settings = { $set: { admin: true } } // Automatically sanitized
+await user.save()
+```
+
+## Testing Security
+
+Esix includes comprehensive tests to verify injection protection:
+
+```typescript
+import { describe, it, expect, beforeEach } from 'vitest'
+import { BaseModel } from 'esix'
+
+class User extends BaseModel {
+  public username = ''
+  public password = ''
+}
+
+describe('Security', () => {
+  beforeEach(() => {
+    process.env.DB_ADAPTER = 'mock'
+    process.env.DB_DATABASE = 'test'
+  })
+
+  it('prevents authentication bypass', async () => {
+    await User.create({
+      username: 'admin',
+      password: 'secret123'
+    })
+
+    // Attempt injection
+    const user = await User
+      .where('username', 'admin')
+      .where('password', { $ne: null })
+      .first()
+
+    // Injection attempt fails
+    expect(user).toBeNull()
+  })
+
+  it('allows valid authentication', async () => {
+    await User.create({
+      username: 'admin',
+      password: 'secret123'
+    })
+
+    // Valid login
+    const user = await User
+      .where('username', 'admin')
+      .where('password', 'secret123')
+      .first()
+
+    expect(user).not.toBeNull()
+  })
+})
+```
+
+## What's Protected
+
+### MongoDB Operators
+
+All MongoDB operators are removed:
+
+- **Comparison**: `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`
+- **Logical**: `$and`, `$or`, `$not`, `$nor`
+- **Element**: `$exists`, `$type`
+- **Evaluation**: `$regex`, `$where`, `$expr`, `$jsonSchema`
+- **Array**: `$all`, `$elemMatch`, `$size`
+- **Update**: `$set`, `$unset`, `$inc`, `$push`, `$pull`
+
+### Common Attack Vectors
+
+<Accordion title="Authentication Bypass">
+  ```typescript
+  // Attack attempt
+  const credentials = {
+    username: 'admin',
+    password: { $ne: null }
+  }
+
+  // Esix sanitizes to:
+  {
+    username: 'admin',
+    password: {} // Won't match anything
+  }
+  ```
+</Accordion>
+
+<Accordion title="Data Extraction">
+  ```typescript
+  // Attack attempt
+  const query = {
+    $where: 'this.password.length > 0'
+  }
+
+  // Esix sanitizes to:
+  {} // Empty query, won't expose data
+  ```
+</Accordion>
+
+<Accordion title="Logic Manipulation">
+  ```typescript
+  // Attack attempt
+  const filter = {
+    $or: [
+      { role: 'admin' },
+      { role: 'user' }
+    ]
+  }
+
+  // Esix sanitizes to:
+  {} // Operator removed
+  ```
+</Accordion>
+
+## What's NOT Protected
+
+While Esix provides strong protection, you should still follow security best practices:
+
+### 1. Hash Passwords
+
+Always hash passwords before storing:
+
+```typescript
+import bcrypt from 'bcrypt'
+
+const hashedPassword = await bcrypt.hash(plainPassword, 10)
+
+await User.create({
+  username: 'john',
+  password: hashedPassword // Store hashed, not plain text
+})
+```
+
+### 2. Validate Input Types
+
+Verify that inputs are the expected type:
+
+```typescript
+import { z } from 'zod'
+
+const userSchema = z.object({
+  username: z.string().min(3).max(50),
+  email: z.string().email(),
+  age: z.number().int().positive()
+})
+
+const validated = userSchema.parse(req.body)
+await User.create(validated)
+```
+
+### 3. Implement Rate Limiting
+
+Prevent brute force attacks:
+
+```typescript
+import rateLimit from 'express-rate-limit'
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5 // 5 attempts
+})
+
+app.post('/login', loginLimiter, async (req, res) => {
+  // Handle login
+})
+```
+
+### 4. Use Authorization
+
+Check permissions before operations:
+
+```typescript
+const post = await Post.find(postId)
+
+if (post.userId !== currentUser.id && !currentUser.isAdmin) {
+  throw new Error('Unauthorized')
+}
+
+await post.delete()
+```
+
+## Advanced: Using Legitimate Operators
+
+If you need to use MongoDB operators (safely, in your application code, not from user input), use the QueryBuilder methods:
+
+```typescript
+// ✅ Safe - using QueryBuilder API
+const adults = await User.where('age', '>=', 18).get()
+
+// ✅ Safe - whereIn uses $in internally
+const admins = await User.whereIn('role', ['admin', 'moderator']).get()
+
+// ✅ Safe - direct aggregation for complex queries
+const stats = await User.aggregate([
+  { $group: { _id: '$department', count: { $sum: 1 } } }
+])
+```
+
+<Warning>
+  Never pass unsanitized user input directly to the `aggregate()` method or raw MongoDB operations.
+</Warning>
+
+## Security Best Practices
+
+<Steps>
+  <Step title="Always validate and sanitize user input">
+    Use libraries like Zod, Joi, or Yup to validate data types and formats before passing to Esix.
+  </Step>
+  
+  <Step title="Hash sensitive data">
+    Use bcrypt or similar libraries to hash passwords and other sensitive information.
+  </Step>
+  
+  <Step title="Implement authentication and authorization">
+    Verify user identity and permissions before database operations.
+  </Step>
+  
+  <Step title="Use HTTPS">
+    Encrypt data in transit to prevent man-in-the-middle attacks.
+  </Step>
+  
+  <Step title="Keep dependencies updated">
+    Regularly update Esix and other packages to get security patches.
+  </Step>
+  
+  <Step title="Monitor and log">
+    Log failed authentication attempts and suspicious queries.
+  </Step>
+</Steps>
+
+## Real-World Example
+
+Here's a secure user authentication implementation:
+
+```typescript
+import bcrypt from 'bcrypt'
+import { z } from 'zod'
+import { User } from './models'
+
+const loginSchema = z.object({
+  username: z.string().min(3).max(50),
+  password: z.string().min(8)
+})
+
+export async function login(input: unknown) {
+  // 1. Validate input structure
+  const { username, password } = loginSchema.parse(input)
+  
+  // 2. Find user (Esix automatically sanitizes)
+  const user = await User.findBy('username', username)
+  
+  if (!user) {
+    throw new Error('Invalid credentials')
+  }
+  
+  // 3. Compare hashed password
+  const isValid = await bcrypt.compare(password, user.password)
+  
+  if (!isValid) {
+    throw new Error('Invalid credentials')
+  }
+  
+  // 4. Return success (generate JWT, session, etc.)
+  return { userId: user.id }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Testing" icon="flask" href="/testing">
+    Learn how to test your models and security measures
+  </Card>
+  <Card title="Query Builder" icon="magnifying-glass" href="/query-builder">
+    Explore safe querying patterns with the QueryBuilder
+  </Card>
+</CardGroup>

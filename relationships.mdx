@@ -1,0 +1,240 @@
+---
+title: "Relationships"
+description: "Define and query relationships between models using hasMany()"
+---
+
+## Overview
+
+Esix provides a simple way to define relationships between models using the `hasMany()` method. This allows you to express one-to-many relationships and easily query related records.
+
+## The hasMany() Method
+
+The `hasMany()` method defines a one-to-many relationship where the parent model has multiple related child models. It returns a QueryBuilder that you can chain with other query methods.
+
+### Basic Usage
+
+```typescript
+class User extends BaseModel {
+  public name = ''
+  public email = ''
+}
+
+class Post extends BaseModel {
+  public title = ''
+  public content = ''
+  public userId = '' // Foreign key
+}
+
+// Get all posts for a user
+const user = await User.find('user-id-123')
+const posts = await user.hasMany(Post).get()
+```
+
+## How It Works
+
+By default, `hasMany()` automatically determines the foreign key name by converting the parent model's class name to camelCase and appending "Id".
+
+<Info>
+  For a `User` model, the default foreign key is `userId`. For a `BlogPost` model, it would be `blogPostId`.
+</Info>
+
+### Method Signature
+
+```typescript
+hasMany<T extends BaseModel>(
+  ctor: ObjectType<T>,
+  foreignKey?: string,
+  localKey?: string
+): QueryBuilder<T>
+```
+
+**Parameters:**
+- `ctor` - The related model's constructor
+- `foreignKey` - (Optional) The foreign key field name on the related model (defaults to `{modelName}Id`)
+- `localKey` - (Optional) The local key field name on the parent model (defaults to `id`)
+
+## Custom Foreign Keys
+
+You can specify a custom foreign key if your relationship doesn't follow the default naming convention:
+
+```typescript
+class Author extends BaseModel {
+  public name = ''
+}
+
+class Book extends BaseModel {
+  public title = ''
+  public authorId = '' // Custom foreign key
+}
+
+const author = await Author.find('author-123')
+const books = await author.hasMany(Book, 'authorId').get()
+```
+
+## Custom Local Keys
+
+You can also specify a custom local key if you want to join on a field other than `id`:
+
+```typescript
+class Department extends BaseModel {
+  public code = ''
+  public name = ''
+}
+
+class Employee extends BaseModel {
+  public name = ''
+  public departmentCode = ''
+}
+
+const department = await Department.findBy('code', 'ENG')
+const employees = await department.hasMany(Employee, 'departmentCode', 'code').get()
+```
+
+## Chaining Query Methods
+
+Since `hasMany()` returns a QueryBuilder, you can chain additional query methods to filter, sort, or limit the results:
+
+```typescript
+const user = await User.find('user-123')
+
+// Get only published posts
+const publishedPosts = await user
+  .hasMany(Post)
+  .where('status', 'published')
+  .get()
+
+// Get the latest 5 posts
+const latestPosts = await user
+  .hasMany(Post)
+  .orderBy('createdAt', 'desc')
+  .limit(5)
+  .get()
+
+// Count total posts
+const postCount = await user.hasMany(Post).count()
+
+// Get post titles only
+const titles = await user.hasMany(Post).pluck('title')
+```
+
+## Real-World Examples
+
+### Blog with Users and Posts
+
+```typescript
+class User extends BaseModel {
+  public username = ''
+  public email = ''
+}
+
+class Post extends BaseModel {
+  public title = ''
+  public content = ''
+  public userId = ''
+  public status = 'draft' // 'draft' | 'published'
+}
+
+class Comment extends BaseModel {
+  public content = ''
+  public postId = ''
+  public userId = ''
+}
+
+// Get all posts by a user
+const user = await User.findBy('username', 'john')
+const posts = await user.hasMany(Post).get()
+
+// Get published posts only
+const publishedPosts = await user
+  .hasMany(Post)
+  .where('status', 'published')
+  .orderBy('createdAt', 'desc')
+  .get()
+
+// Get comments for a post
+const post = await Post.find('post-123')
+const comments = await post.hasMany(Comment).get()
+```
+
+### E-commerce with Orders and Items
+
+```typescript
+class Customer extends BaseModel {
+  public name = ''
+  public email = ''
+}
+
+class Order extends BaseModel {
+  public customerId = ''
+  public status = 'pending'
+  public total = 0
+}
+
+class OrderItem extends BaseModel {
+  public orderId = ''
+  public productName = ''
+  public quantity = 0
+  public price = 0
+}
+
+// Get all orders for a customer
+const customer = await Customer.findBy('email', 'customer@example.com')
+const orders = await customer.hasMany(Order).get()
+
+// Get completed orders only
+const completedOrders = await customer
+  .hasMany(Order)
+  .where('status', 'completed')
+  .orderBy('createdAt', 'desc')
+  .get()
+
+// Calculate total spending
+const totalSpent = await customer.hasMany(Order).sum('total')
+
+// Get items for an order
+const order = await Order.find('order-456')
+const items = await order.hasMany(OrderItem).get()
+```
+
+## Type Safety
+
+The `hasMany()` method is fully type-safe. TypeScript will ensure that:
+
+- The related model class is valid
+- The foreign and local keys exist on the respective models
+- All chained query methods are properly typed
+
+```typescript
+const user = await User.find('user-123')
+
+// TypeScript knows this returns Post[]
+const posts: Post[] = await user.hasMany(Post).get()
+
+// Type error: 'invalidField' doesn't exist on Post
+const invalid = await user.hasMany(Post).where('invalidField', 'value').get()
+```
+
+## Implementation Details
+
+The `hasMany()` method is implemented in the BaseModel class (base-model.ts:429-440). It:
+
+1. Creates a new QueryBuilder for the related model
+2. Automatically determines or uses the provided foreign key
+3. Automatically determines or uses the provided local key
+4. Adds a `where` clause matching the foreign key to the local key value
+5. Returns the QueryBuilder for further chaining
+
+<Note>
+  Behind the scenes, `hasMany()` uses the QueryBuilder's `where()` method to filter related records. All sanitization and security measures apply automatically.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Query Builder" icon="magnifying-glass" href="/query-builder">
+    Learn about the QueryBuilder methods you can chain with hasMany()
+  </Card>
+  <Card title="Security" icon="shield" href="/security">
+    Understand how Esix protects against NoSQL injection attacks
+  </Card>
+</CardGroup>

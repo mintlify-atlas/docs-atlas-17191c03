@@ -1,0 +1,173 @@
+---
+title: 'min() & max()'
+description: 'Find minimum and maximum values in numeric fields'
+---
+
+## Overview
+
+The `min()` and `max()` methods find the smallest and largest values for a specified numeric field across your document collection.
+
+## min()
+
+Returns the smallest value for a specified numeric field.
+
+### Signature
+
+```typescript
+static async min<T extends BaseModel, K extends keyof T>(
+  this: ObjectType<T>,
+  key: K
+): Promise<number>
+```
+
+### Parameters
+
+<ParamField path="key" type="keyof T" required>
+  The field name to find the minimum value for. Must be a numeric field.
+</ParamField>
+
+### Returns
+
+<ResponseField name="min" type="number" required>
+  The smallest value for the specified field
+</ResponseField>
+
+### Examples
+
+```typescript
+// Find youngest user
+const minAge = await User.min('age')
+console.log(`Youngest user is ${minAge} years old`)
+
+// Find lowest price
+const lowestPrice = await Product.min('price')
+
+// Find minimum with filters
+const minScoreInClassA = await Test
+  .where('class', 'A')
+  .min('score')
+
+// Find earliest timestamp
+const earliestOrder = await Order.min('createdAt')
+```
+
+## max()
+
+Returns the largest value for a specified numeric field.
+
+### Signature
+
+```typescript
+static async max<T extends BaseModel, K extends keyof T>(
+  this: ObjectType<T>,
+  key: K
+): Promise<number>
+```
+
+### Parameters
+
+<ParamField path="key" type="keyof T" required>
+  The field name to find the maximum value for. Must be a numeric field.
+</ParamField>
+
+### Returns
+
+<ResponseField name="max" type="number" required>
+  The largest value for the specified field
+</ResponseField>
+
+### Examples
+
+```typescript
+// Find highest test score
+const maxScore = await Test.max('score')
+console.log(`High score: ${maxScore}`)
+
+// Find most expensive product
+const highestPrice = await Product.max('price')
+
+// Find maximum with filters
+const topScoreInMath = await Test
+  .where('subject', 'mathematics')
+  .max('score')
+
+// Find latest activity
+const lastLogin = await User.max('lastLoginAt')
+```
+
+## Combined Examples
+
+```typescript
+// Price range analysis
+const minPrice = await Product.min('price')
+const maxPrice = await Product.max('price')
+const avgPrice = await Product.average('price')
+
+console.log(`Price range: $${minPrice} - $${maxPrice}`)
+console.log(`Average price: $${avgPrice}`)
+
+// Test score distribution
+const testScores = await Test.where('subject', 'physics')
+const lowest = await testScores.min('score')
+const highest = await testScores.max('score')
+const average = await testScores.average('score')
+
+console.log(`Scores: ${lowest}-${highest} (avg: ${average})`)
+
+// Age demographics
+const users = await User.where('active', true)
+const youngestAge = await users.min('age')
+const oldestAge = await users.max('age')
+const averageAge = await users.average('age')
+```
+
+## Advanced Usage
+
+```typescript
+// Find product with extreme values
+const products = await Product.all()
+const cheapestPrice = await Product.min('price')
+const mostExpensivePrice = await Product.max('price')
+
+const cheapest = await Product.findBy('price', cheapestPrice)
+const mostExpensive = await Product.findBy('price', mostExpensivePrice)
+
+console.log(`Cheapest: ${cheapest?.name} at $${cheapestPrice}`)
+console.log(`Most expensive: ${mostExpensive?.name} at $${mostExpensivePrice}`)
+
+// Response time monitoring
+const responseTime = await Metric.where('type', 'api_response')
+const fastest = await responseTime.min('duration')
+const slowest = await responseTime.max('duration')
+const p95 = await responseTime.percentile('duration', 95)
+
+console.log(`Response times: ${fastest}ms - ${slowest}ms (p95: ${p95}ms)`)
+```
+
+## Error Handling
+
+Both methods throw an error if the specified field contains non-numeric values:
+
+```typescript
+try {
+  const max = await User.max('email') // Error: field is not numeric
+} catch (error) {
+  console.error('All values must be numbers:', error.message)
+}
+```
+
+## Use Cases
+
+- **Data Validation**: Check value ranges before processing
+- **Analytics**: Find extreme values in datasets
+- **Price Monitoring**: Track lowest and highest prices
+- **Performance**: Monitor min/max response times or latencies
+- **Gaming**: Track high scores and records
+- **Inventory**: Find stock levels (min/max quantities)
+
+## Related Methods
+
+- [sum()](/api/sum-average) - Calculate sum of values
+- [average()](/api/sum-average) - Calculate average of values
+- [percentile()](/api/percentile) - Calculate percentiles
+- [count()](/api/count) - Count documents

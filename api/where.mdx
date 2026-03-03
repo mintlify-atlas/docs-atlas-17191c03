@@ -1,0 +1,174 @@
+---
+title: where()
+description: Filter query results by field values and comparison operators
+---
+
+The `where()` method adds constraints to your query to filter results. It supports both simple equality checks and advanced comparison operators.
+
+## Syntax
+
+### Two-Parameter Syntax (Equality)
+
+Filter by exact field value match:
+
+```typescript
+where<K extends keyof T>(key: K, value: any): QueryBuilder<T>
+```
+
+<ParamField path="key" type="keyof T" required>
+  The property name to filter by (must be a valid model field)
+</ParamField>
+
+<ParamField path="value" type="any" required>
+  The value to match
+</ParamField>
+
+### Three-Parameter Syntax (Comparison)
+
+Filter using comparison operators:
+
+```typescript
+where<K extends keyof T>(
+  key: K,
+  operator: ComparisonOperator,
+  value: any
+): QueryBuilder<T>
+```
+
+<ParamField path="key" type="keyof T" required>
+  The property name to filter by
+</ParamField>
+
+<ParamField path="operator" type="ComparisonOperator" required>
+  Comparison operator: `'='`, `'!='`, `'<>'`, `'>'`, `'>='`, `'<'`, `'<='`
+</ParamField>
+
+<ParamField path="value" type="any" required>
+  The value to compare against
+</ParamField>
+
+## Returns
+
+<ResponseField name="QueryBuilder<T>" type="QueryBuilder<T>">
+  Returns the query builder instance for method chaining
+</ResponseField>
+
+## Examples
+
+### Equality Filtering
+
+Filter by exact field value:
+
+```typescript
+// Find all published blog posts
+const publishedPosts = await BlogPost.where('status', 'published').get()
+
+// Find user by email
+const user = await User.where('email', 'john@example.com').first()
+```
+
+### Comparison Operators
+
+#### Greater Than
+
+```typescript
+// Find adult users (age > 18)
+const adults = await User.where('age', '>', 18).get()
+
+// Products with more than 10 items in stock
+const inStock = await Product.where('quantity', '>', 10).get()
+```
+
+#### Greater Than or Equal
+
+```typescript
+// Senior citizens (age >= 65)
+const seniors = await User.where('age', '>=', 65).get()
+
+// Orders above or equal to $100
+const bigOrders = await Order.where('amount', '>=', 100).get()
+```
+
+#### Less Than
+
+```typescript
+// Young users (age < 30)
+const youngUsers = await User.where('age', '<', 30).get()
+
+// Low-priced items
+const cheap = await Product.where('price', '<', 20).get()
+```
+
+#### Less Than or Equal
+
+```typescript
+// Affordable products (price <= $50)
+const affordable = await Product.where('price', '<=', 50).get()
+
+// Scores below or equal to passing grade
+const failing = await Test.where('score', '<=', 59).get()
+```
+
+#### Not Equal
+
+```typescript
+// Active users (not banned)
+const activeUsers = await User.where('status', '!=', 'banned').get()
+
+// Alternative syntax
+const alsoActive = await User.where('status', '<>', 'banned').get()
+```
+
+### Chaining Multiple Conditions
+
+Combine multiple `where()` calls:
+
+```typescript
+// Working age population (18-65)
+const workingAge = await User
+  .where('age', '>=', 18)
+  .where('age', '<=', 65)
+  .get()
+
+// Premium published posts
+const premiumPosts = await BlogPost
+  .where('status', 'published')
+  .where('isPremium', true)
+  .where('views', '>', 1000)
+  .get()
+```
+
+### Combining with Other Query Methods
+
+```typescript
+// Top 10 expensive products
+const expensive = await Product
+  .where('price', '>', 100)
+  .orderBy('price', 'desc')
+  .limit(10)
+  .get()
+
+// Recent active users
+const recentActive = await User
+  .where('status', 'active')
+  .where('lastLoginAt', '>', Date.now() - 86400000) // Last 24 hours
+  .orderBy('lastLoginAt', 'desc')
+  .get()
+```
+
+## MongoDB Operator Mapping
+
+Esix comparison operators map to MongoDB query operators:
+
+| Esix Operator | MongoDB Operator | Description |
+|---------------|------------------|-------------|
+| `'='` | (direct match) | Equal to |
+| `'!='` or `'<>'` | `$ne` | Not equal to |
+| `'>'` | `$gt` | Greater than |
+| `'>='` | `$gte` | Greater than or equal |
+| `'<'` | `$lt` | Less than |
+| `'<='` | `$lte` | Less than or equal |
+
+## Source
+
+Implementation: `packages/esix/src/base-model.ts:325-364`, `packages/esix/src/query-builder.ts:415-490`

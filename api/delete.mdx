@@ -1,0 +1,226 @@
+---
+title: 'delete()'
+description: 'Remove a model instance from the database'
+---
+
+## Method Signature
+
+```typescript
+async delete(): Promise<number>
+```
+
+Deletes the model from the database. This instance method removes the document matching the model's ID.
+
+## Parameters
+
+None. This method operates on the current instance and uses its `id` property.
+
+## Returns
+
+<ResponseField name="count" type="Promise<number>">
+  Returns a promise that resolves to the number of documents deleted (typically 1 if successful, 0 if not found).
+</ResponseField>
+
+## Examples
+
+### Basic Deletion
+
+```typescript
+const post = await BlogPost.find(postId);
+
+if (post) {
+  await post.delete();
+  console.log('Post deleted successfully');
+}
+```
+
+### With Confirmation
+
+```typescript
+const user = await User.find(userId);
+
+if (user) {
+  const confirmed = await confirmDeletion();
+  
+  if (confirmed) {
+    const deletedCount = await user.delete();
+    console.log(`Deleted ${deletedCount} user(s)`);
+  }
+}
+```
+
+### Conditional Deletion
+
+```typescript
+const order = await Order.find(orderId);
+
+if (order) {
+  // Only delete if order is in draft status
+  if (order.status === 'draft') {
+    await order.delete();
+    console.log('Draft order deleted');
+  } else {
+    console.log('Cannot delete processed order');
+  }
+}
+```
+
+### Batch Deletion
+
+```typescript
+// Find all posts by a user
+const posts = await BlogPost.where('authorId', userId).get();
+
+// Delete each post
+for (const post of posts) {
+  await post.delete();
+}
+
+console.log(`Deleted ${posts.length} posts`);
+```
+
+### Soft Delete Pattern
+
+```typescript
+class Post extends BaseModel {
+  title = '';
+  content = '';
+  deletedAt: number | null = null;
+  
+  // Soft delete method
+  async softDelete() {
+    this.deletedAt = Date.now();
+    await this.save();
+  }
+  
+  // Hard delete (actual deletion)
+  async hardDelete() {
+    return this.delete();
+  }
+}
+
+// Usage
+const post = await Post.find(postId);
+
+if (post) {
+  // Soft delete - keeps record with timestamp
+  await post.softDelete();
+  
+  // Or hard delete - removes from database
+  // await post.hardDelete();
+}
+```
+
+### Error Handling
+
+```typescript
+try {
+  const product = await Product.find(productId);
+  
+  if (!product) {
+    throw new Error('Product not found');
+  }
+  
+  const deletedCount = await product.delete();
+  
+  if (deletedCount === 0) {
+    console.warn('Product was not deleted');
+  } else {
+    console.log('Product deleted successfully');
+  }
+} catch (error) {
+  console.error('Failed to delete product:', error);
+}
+```
+
+### Cascading Deletes
+
+```typescript
+class User extends BaseModel {
+  name = '';
+  email = '';
+  
+  async deleteWithRelations() {
+    // Delete related posts
+    const posts = await BlogPost.where('authorId', this.id).get();
+    for (const post of posts) {
+      await post.delete();
+    }
+    
+    // Delete related comments
+    const comments = await Comment.where('userId', this.id).get();
+    for (const comment of comments) {
+      await comment.delete();
+    }
+    
+    // Finally delete the user
+    return this.delete();
+  }
+}
+
+// Usage
+const user = await User.find(userId);
+if (user) {
+  await user.deleteWithRelations();
+}
+```
+
+### Transaction-Style Cleanup
+
+```typescript
+async function deleteUserSafely(userId: string) {
+  const user = await User.find(userId);
+  
+  if (!user) {
+    throw new Error('User not found');
+  }
+  
+  try {
+    // Archive user data before deletion
+    await archiveUserData(user);
+    
+    // Delete user
+    await user.delete();
+    
+    // Log deletion
+    await AuditLog.create({
+      action: 'user_deleted',
+      userId: user.id,
+      timestamp: Date.now()
+    });
+    
+    return true;
+  } catch (error) {
+    console.error('Deletion failed:', error);
+    throw error;
+  }
+}
+```
+
+## Comparison with QueryBuilder Delete
+
+```typescript
+// Instance method - delete specific model
+const post = await BlogPost.find(postId);
+await post.delete(); // Deletes 1 document
+
+// QueryBuilder - delete multiple matching documents
+const deletedCount = await BlogPost
+  .where('status', 'draft')
+  .where('createdAt', '<', oldDate)
+  .delete(); // Can delete many documents
+```
+
+## Important Notes
+
+- The `delete()` method is **permanent** - it removes the document from the database
+- The model instance still exists in memory after deletion
+- Returns the number of deleted documents (usually 1)
+- Consider implementing soft deletes for data that may need recovery
+- For bulk deletions, consider using QueryBuilder's delete method
+
+## Related Methods
+
+- [save()](/api/save) - Save changes to the database
+- [create()](/api/create) - Create a new model
+- [where().delete()](/api/query-builder#delete) - Delete multiple models with a query
